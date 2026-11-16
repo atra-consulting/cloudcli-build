@@ -3,3 +3,6 @@ out/
 .local/
 .build.log
 .DS_Store
+
+# Interne Pläne (enthalten Details der Coder-Installation, nicht veröffentlichen)
+plans/
