@@ -15,7 +15,7 @@ kleinen Wächter davor und veröffentlicht das Ganze als GitHub Release.
 
 - [Warum es dieses Repo gibt](#warum-es-dieses-repo-gibt)
 - [So spielt alles zusammen](#so-spielt-alles-zusammen)
-- [Das Bündel](#das-bündel)
+- [Das Bundle](#das-bundle)
 - [Schnellstart](#schnellstart)
 - [Bauen](#bauen)
 - [Lokal ausprobieren](#lokal-ausprobieren)
@@ -41,12 +41,12 @@ der eine Benutzer der Datenbank, die Anmeldung übernimmt ein Proxy davor. Der H
 **beim Bauen**, Vite schreibt ihn fest ins Frontend. Das npm-Paket `@cloudcli-ai/cloudcli` ist ohne ihn
 gebaut. Also bauen wir selbst, einmal zentral statt auf jedem Platz:
 
-| | Bau auf jedem Platz | Zentrales Bündel (dieses Repo) |
+| | Bau auf jedem Platz | Zentrales Bundle (dieses Repo) |
 |---|---|---|
 | Erster Start | 2–4 min, rund 2 GB RAM-Spitze | Download von rund 210 MB, Sekunden zum Entpacken |
 | Abhängig von | npm-Registry, GitHub, Build-Werkzeugen | einem GitHub Release |
 | Reproduzierbar | nein, jeder Platz baut neu | feste Versionen, SHA-256 im Template |
-| Geprüft | nein | Rauchtest vor jedem Release |
+| Geprüft | nein | Smoketest vor jedem Release |
 
 ## So spielt alles zusammen
 
@@ -72,7 +72,7 @@ gebaut. Also bauen wir selbst, einmal zentral statt auf jedem Platz:
 Beide Ports liegen nur auf `127.0.0.1`. Von außen kommt man ausschließlich über Coder heran, und auch dann
 nur mit Anfragen, die von der App selbst stammen (siehe [Sicherheit](#sicherheit)).
 
-## Das Bündel
+## Das Bundle
 
 Ein Release besteht aus `cloudcli-<tag>-atra.<n>-linux-x64.tar.gz` und der Prüfsumme `….tar.gz.sha256`.
 Das Archiv hat genau einen Ordner:
@@ -92,7 +92,7 @@ cloudcli/
 ```
 
 **Eigenes Node:** Die nativen Module (`better-sqlite3`, `node-pty`, `bcrypt`) sind für genau diese
-Node-Version gebaut. Deshalb bringt das Bündel sein Node mit und hängt nicht davon ab, ob und welches Node
+Node-Version gebaut. Deshalb bringt das Bundle sein Node mit und hängt nicht davon ab, ob und welches Node
 der Teilnehmer installiert hat. Auf dem Platz braucht es weder npm noch einen Compiler.
 
 **Bewusst weggelassen** (rund 715 MB, das Archiv schrumpft von rund 500 auf rund 210 MB):
@@ -108,7 +108,7 @@ der Teilnehmer installiert hat. Auf dem Platz braucht es weder npm noch einen Co
 ### `bin/cloudcli-start`
 
 Startet den Wächter, der seinerseits CloudCLI als Kindprozess startet. Endet CloudCLI, endet auch der
-Wächter, damit systemd neu starten kann. Das Node des Bündels wird **hinten** an `PATH` angehängt:
+Wächter, damit systemd neu starten kann. Das Node des Bundles wird **hinten** an `PATH` angehängt:
 Kindprozesse finden so ein `node`, im Terminal der UI bleibt das Node des Teilnehmers vorn.
 
 | Variable | Standard | Bedeutung |
@@ -139,7 +139,7 @@ Scheitert ein Schritt, endet das Skript mit Fehler, ein neuer Aufruf holt ihn na
 ## Schnellstart
 
 ```bash
-./build.sh          # Bündel bauen, inklusive Rauchtest (Docker nötig)
+./build.sh          # Bundle bauen, inklusive Smoketest (Docker nötig)
 ./run-local.sh      # im Container starten
 open http://localhost:3001
 ```
@@ -161,9 +161,9 @@ Was der Bau tut:
 4. prüfen, dass das Frontend wirklich im Platform-Modus gebaut ist
 5. Entwicklungsabhängigkeiten entfernen, Codex- und SDK-Binary löschen
 6. App im Umfang der `files` aus `package.json` mit `node_modules`, Node, Wächter und Startskripten packen
-7. **Rauchtest** gegen das fertige Archiv (`scripts/smoke.sh`)
+7. **Smoketest** gegen das fertige Archiv (`scripts/smoke.sh`)
 
-Der Rauchtest entpackt das Archiv in ein leeres `HOME` und prüft:
+Der Smoketest entpackt das Archiv in ein leeres `HOME` und prüft:
 
 | Bereich | Prüfung |
 |---|---|
@@ -172,15 +172,15 @@ Der Rauchtest entpackt das Archiv in ein leeres `HOME` und prüft:
 | Adressen | trotz geerbtem `HOST=0.0.0.0` lauschen beide Ports nur auf `127.0.0.1` |
 | Wächter | Anfragen anderer Seiten, fremder Origin, Einbetten im iframe, Registrierung aus dem Browser und fremder WebSocket werden abgelehnt; eigene Anfragen, eigener WebSocket und das Öffnen über einen Link gehen durch |
 | Claude | CloudCLI ruft `claude` aus `PATH` auf (mit einem Platzhalter-Skript) |
-| Bündel | `better-sqlite3` und `node-pty` laden, ein Terminal liefert Ausgabe; Codex- und SDK-Binary fehlen |
+| Bundle | `better-sqlite3` und `node-pty` laden, ein Terminal liefert Ausgabe; Codex- und SDK-Binary fehlen |
 
 Ergebnis: `out/cloudcli-<tag>-atra.<n>-linux-x64.tar.gz` und `.sha256`.
 
 ## Lokal ausprobieren
 
 ```bash
-./run-local.sh                                   # neuestes Bündel aus out/
-./run-local.sh out/cloudcli-…-linux-x64.tar.gz   # bestimmtes Bündel
+./run-local.sh                                   # neuestes Bundle aus out/
+./run-local.sh out/cloudcli-…-linux-x64.tar.gz   # bestimmtes Bundle
 GIT_NAME="Erika Muster" GIT_EMAIL=erika@example.com ./run-local.sh
 ```
 
@@ -211,11 +211,11 @@ den lokalen Test gedacht.
 | `node.sha256` | SHA-256 von `node-<version>-linux-x64.tar.xz` | `cdeb867…` |
 | `release.version` | Zähler für Neubauten derselben upstream-Version | `1` |
 
-Daraus ergibt sich der Name von Bündel und Release-Tag: `cloudcli-v1.37.9-atra.1-linux-x64`.
+Daraus ergibt sich der Name von Bundle und Release-Tag: `cloudcli-v1.37.9-atra.1-linux-x64`.
 
 `.github/workflows/build.yml` hat zwei Jobs:
 
-- **build** (nur Leserechte, kein Token im Checkout): bauen und Rauchtest. Bei einem Pull Request endet
+- **build** (nur Leserechte, kein Token im Checkout): bauen und Smoketest. Bei einem Pull Request endet
   der Workflow hier.
 - **release** (Schreibrecht, nur auf `main`): nimmt das fertige Archiv aus dem Bau-Job, prüft die
   Prüfsumme und legt das Release mit Archiv, Prüfsumme und Links auf den Quellcode an. Dieser Job führt
@@ -278,7 +278,7 @@ prüft keinen Origin, `/api/agent` startet Claude ohne Key. Wer CloudCLI erreich
 was der Benutzer des Platzes kann. Drei Schichten schützen davor:
 
 1. **Nur `127.0.0.1`.** Wächter und CloudCLI lauschen nur lokal. Die allgemeine Variable `HOST` wird
-   ignoriert, der Rauchtest prüft das.
+   ignoriert, der Smoketest prüft das.
 2. **Coder davor.** Die Coder-App mit `share = "owner"` lässt nur den angemeldeten Besitzer des Platzes durch.
 3. **Wächter (`cloudcli-guard.mjs`).** Der Browser des Besitzers schickt sein Coder-Cookie auch bei
    Anfragen, die eine andere Seite derselben Site auslöst, etwa die App eines anderen Teilnehmers unter
@@ -292,7 +292,7 @@ was der Benutzer des Platzes kann. Drei Schichten schützen davor:
 
 Weitere Punkte:
 
-- **Keine Geheimnisse im Bündel.** Das Passwort aus `cloudcli-ensure-user` ist zufällig und wird verworfen.
+- **Keine Geheimnisse im Bundle.** Das Passwort aus `cloudcli-ensure-user` ist zufällig und wird verworfen.
   Die Claude-Anmeldung liegt beim Teilnehmer in `~/.claude`.
 - **Bis `cloudcli-ensure-user` gelaufen ist,** kann der erste lokale Aufruf von `/api/auth/register` den
   Benutzer festlegen. Aus dem Browser blockt das der Wächter; lokal hat ohnehin nur der Platz selbst Zugriff.
@@ -301,7 +301,9 @@ Weitere Punkte:
   verschobener Tag bricht den Bau ab), Basis-Image als fester Digest, Actions als feste Commit-SHAs. Die
   Plätze prüfen das Archiv gegen die SHA-256 im Template.
 - **Bau ohne Schreibrecht.** Der Bau führt fremden Code aus (npm-Skripte) und läuft deshalb in einem Job
-  ohne Schreibrecht und ohne gespeichertes Token.
+  ohne Schreibrecht und ohne im Checkout gespeichertes Token. Der Bau-Container bekommt nur das Job-Token
+  mit reinen Leserechten (`GITHUB_TOKEN`), weil `@vscode/ripgrep` ripgrep über die GitHub-API lädt und
+  anonym auf den geteilten IPs der Runner am Rate-Limit scheitert.
 
 ## Fehlersuche
 
@@ -323,15 +325,15 @@ Weitere Punkte:
 ```
 cloudcli-build/
 ├── cloudcli.version, cloudcli.commit   upstream-Tag und erwarteter Commit
-├── node.version, node.sha256           Node.js für das Bündel und seine Prüfsumme
+├── node.version, node.sha256           Node.js für das Bundle und seine Prüfsumme
 ├── release.version                     Zähler für Neubauten
 ├── build.sh                            baut im Container (lokal und in CI gleich)
 ├── run-local.sh                        lokaler Test in Docker
 ├── scripts/
 │   ├── build-bundle.sh                 eigentlicher Bau (läuft im Container)
-│   └── smoke.sh                        Rauchtest gegen ein fertiges Archiv
-├── bundle/bin/                         Startskript, Wächter, Einrichtung (kommen ins Bündel)
-├── .github/workflows/build.yml         Bau, Rauchtest, Release
+│   └── smoke.sh                        Smoketest gegen ein fertiges Archiv
+├── bundle/bin/                         Startskript, Wächter, Einrichtung (kommen ins Bundle)
+├── .github/workflows/build.yml         Bau, Smoketest, Release
 ├── CLAUDE.md                           Hinweise für Claude Code und Betreuer
 ├── LICENSE                             AGPL-3.0
 └── README.md
@@ -340,12 +342,12 @@ cloudcli-build/
 ## Lizenz
 
 CloudCLI UI ist © Siteboon AI B.V. und Mitwirkende und steht unter der
-**GNU Affero General Public License v3.0 or later**. `LICENSE` und `NOTICE` liegen in jedem Bündel.
+**GNU Affero General Public License v3.0 or later**. `LICENSE` und `NOTICE` liegen in jedem Bundle.
 
-Der Quellcode von CloudCLI wird **unverändert** gebaut. Abweichend vom Quellstand enthält das Bündel ein mit
+Der Quellcode von CloudCLI wird **unverändert** gebaut. Abweichend vom Quellstand enthält das Bundle ein mit
 `VITE_IS_PLATFORM=true` gebautes Frontend, nur Laufzeit-Abhängigkeiten ohne das Codex- und das SDK-Binary,
 sowie die Skripte aus `bundle/bin/`. `SOURCE.txt` im Archiv und die Beschreibung jedes Releases nennen den
-upstream-Commit und den Stand dieses Repos. Zusammen ist das der vollständige Quellcode zu jedem Bündel.
+upstream-Commit und den Stand dieses Repos. Zusammen ist das der vollständige Quellcode zu jedem Bundle.
 
 Eigene Änderungen am Quellcode von CloudCLI gehören nicht hierher. Sie würden nach AGPL §13 verlangen, den
 geänderten Quellcode allen Nutzern der Arbeitsplätze anzubieten.

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =============================================================================
-# Baut das Bündel im Container (aufgerufen von build.sh). Erwartet das Repo
+# Baut das Bundle im Container (aufgerufen von build.sh). Erwartet das Repo
 # unter /repo (nur lesend) und schreibt nach /out.
 #
 # Schritte:
@@ -10,9 +10,9 @@
 #   3. npm ci und Bau mit VITE_IS_PLATFORM=true: Frontend ohne eigenes Login,
 #      die Anmeldung übernimmt Coder (App mit share = "owner")
 #   4. Entwicklungsabhängigkeiten, Codex- und SDK-Binary entfernen
-#   5. Bündel packen: Node, App (Umfang wie npm pack), Startskripte, Wächter,
+#   5. Bundle packen: Node, App (Umfang wie npm pack), Startskripte, Wächter,
 #      LICENSE, NOTICE, SOURCE.txt
-#   6. Rauchtest (scripts/smoke.sh) gegen das fertige Archiv
+#   6. Smoketest (scripts/smoke.sh) gegen das fertige Archiv
 #
 # Der Quellcode von upstream wird nicht verändert.
 # =============================================================================
@@ -46,7 +46,7 @@ echo "== Baue $name (Node $node_version, Bau-Skripte $build_commit)"
 echo "== Pakete für den Bau"
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
-# iproute2: ss für den Rauchtest (Adressen, auf denen gelauscht wird)
+# iproute2: ss für den Smoketest (Adressen, auf denen gelauscht wird)
 apt-get install -y -qq --no-install-recommends \
   build-essential python3 git curl ca-certificates xz-utils iproute2 >/dev/null
 
@@ -117,18 +117,18 @@ for entry in package.json "${entries[@]}"; do
   mkdir -p "$work/cloudcli/app/$(dirname "$entry")"
   cp -a "$entry" "$work/cloudcli/app/$entry"
 done
-[ -f "$work/cloudcli/app/dist-server/server/index.js" ] || fail "dist-server/server/index.js fehlt im Bündel"
-[ -f "$work/cloudcli/app/dist/index.html" ] || fail "dist/index.html fehlt im Bündel"
+[ -f "$work/cloudcli/app/dist-server/server/index.js" ] || fail "dist-server/server/index.js fehlt im Bundle"
+[ -f "$work/cloudcli/app/dist/index.html" ] || fail "dist/index.html fehlt im Bundle"
 mv node_modules "$work/cloudcli/app/node_modules"
 
-echo "== Bündel zusammenstellen"
+echo "== Bundle zusammenstellen"
 install -m 755 "$repo"/bundle/bin/cloudcli-start "$repo"/bundle/bin/cloudcli-ensure-user "$work/cloudcli/bin/"
 install -m 644 "$repo"/bundle/bin/cloudcli-guard.mjs "$work/cloudcli/bin/"
 cp LICENSE NOTICE "$work/cloudcli/"
 cat >"$work/cloudcli/SOURCE.txt" <<EOF
-CloudCLI UI (siteboon/claudecodeui) als Bündel für Coder-Arbeitsplätze
+CloudCLI UI (siteboon/claudecodeui) als Bundle für Coder-Arbeitsplätze
 
-Bündel:        ${name}
+Bundle:        ${name}
 Gebaut:        $(date -u +%Y-%m-%dT%H:%M:%SZ)
 Node:          ${node_version} (linux-x64, liegt unter node/)
 
@@ -136,7 +136,7 @@ Quellcode:     https://github.com/siteboon/claudecodeui/tree/${commit}
                (Tag ${upstream}), unverändert gebaut
 Lizenz:        AGPL-3.0-or-later, siehe LICENSE und NOTICE
 
-Abweichend vom Quellstand enthält das Bündel:
+Abweichend vom Quellstand enthält das Bundle:
   - Frontend gebaut mit VITE_IS_PLATFORM=true (kein eigenes Login)
   - node_modules nur mit Laufzeit-Abhängigkeiten, ohne
     @openai/codex-linux-x64 und @anthropic-ai/claude-agent-sdk-linux-x64
@@ -149,7 +149,7 @@ EOF
 tar -C "$work" --owner=0 --group=0 --numeric-owner -czf "$out/$name.tar.gz" cloudcli
 (cd "$out" && sha256sum "$name.tar.gz" >"$name.tar.gz.sha256")
 
-echo "== Rauchtest"
+echo "== Smoketest"
 bash "$repo/scripts/smoke.sh" "$out/$name.tar.gz"
 
 if [ -n "${HOST_UID:-}" ]; then

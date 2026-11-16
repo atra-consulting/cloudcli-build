@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-Baut CloudCLI UI (`siteboon/claudecodeui`) mit `VITE_IS_PLATFORM=true` als eigenständiges Bündel
+Baut CloudCLI UI (`siteboon/claudecodeui`) mit `VITE_IS_PLATFORM=true` als eigenständiges Bundle
 (linux-x64, Ubuntu 24.04) für Coder-Arbeitsplätze, mit einem Wächter davor. Überblick, Ablauf, Sicherheit
 und Fehlersuche: [README.md](README.md).
 
@@ -19,15 +19,15 @@ und Fehlersuche: [README.md](README.md).
 - **Öffentliches Repo:** keine internen Adressen, Projekt-IDs, Personennamen, Repo-Pfade der
   Coder-Installation oder Secrets.
 - Sprache in Doku, Kommentaren und Commits: Deutsch, kurze Sätze, ein Begriff pro Sache
-  (Bündel, Arbeitsplatz/Platz, Platform-Modus, Wächter, Rauchtest).
-- Jede Änderung am Bündel: `./build.sh` (enthält den Rauchtest) muss grün sein. Neues Verhalten bekommt
+  (Bundle, Arbeitsplatz/Platz, Platform-Modus, Wächter, Smoketest).
+- Jede Änderung am Bundle: `./build.sh` (enthält den Smoketest) muss grün sein. Neues Verhalten bekommt
   eine Prüfung in `scripts/smoke.sh`.
 
 ## Befehle
 
 ```bash
-./build.sh                  # Bau + Rauchtest im Container ubuntu:24.04 (linux/amd64)
-./run-local.sh              # neuestes Bündel lokal starten, http://localhost:3001
+./build.sh                  # Bau + Smoketest im Container ubuntu:24.04 (linux/amd64)
+./run-local.sh              # neuestes Bundle lokal starten, http://localhost:3001
 docker logs -f cloudcli-local
 bash -n build.sh run-local.sh scripts/*.sh && sh -n bundle/bin/cloudcli-start bundle/bin/cloudcli-ensure-user \
   && node --check bundle/bin/cloudcli-guard.mjs   # Syntax

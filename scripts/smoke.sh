@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # =============================================================================
-# Rauchtest für ein fertiges Bündel (Linux x64): entpacken, starten und
+# Smoketest für ein fertiges Bundle (Linux x64): entpacken, starten und
 # nachweisen, dass Platform-Modus, Wächter, Einrichtung, Claude-Aufruf,
 # Datenbank und Terminal funktionieren.
 # Aufruf: scripts/smoke.sh out/cloudcli-...-linux-x64.tar.gz
 # Braucht: curl, git, ss (iproute2)
 # =============================================================================
 set -euo pipefail
-tarball=${1:?Pfad zum Bündel}
+tarball=${1:?Pfad zum Bundle}
 
 work=$(mktemp -d)
 pid=""
@@ -20,7 +20,7 @@ cleanup() {
 }
 trap cleanup EXIT
 fail() {
-  echo "RAUCHTEST FEHLGESCHLAGEN: $*" >&2
+  echo "SMOKETEST FEHLGESCHLAGEN: $*" >&2
   echo "--- Server-Log" >&2
   tail -n 40 "$work/server.log" >&2 || true
   exit 1
@@ -55,7 +55,7 @@ url="http://127.0.0.1:$SERVER_PORT"
 pid=$!
 
 echo "-- Einrichtung"
-"$bundle/bin/cloudcli-ensure-user" smoke-user "Rauch Test" smoke@example.com || fail "Einrichtung fehlgeschlagen"
+"$bundle/bin/cloudcli-ensure-user" smoke-user "Smoke Test" smoke@example.com || fail "Einrichtung fehlgeschlagen"
 second=$("$bundle/bin/cloudcli-ensure-user" smoke-user "Anderer Name" other@example.com) || fail "zweiter Aufruf fehlgeschlagen"
 echo "$second" | grep -q "existiert schon" || fail "zweiter Aufruf legt Benutzer erneut an"
 echo "$second" | grep -q "schon erledigt" || fail "zweiter Aufruf überschreibt die Git-Identität"
@@ -96,12 +96,12 @@ ok "fremde Seiten, iframe, Browser-Registrierung und fremder WebSocket abgelehnt
 
 echo "-- Claude Code aus PATH"
 curl -s -o /dev/null --max-time 90 -X POST -H 'Content-Type: application/json' \
-  --data-binary "{\"projectPath\":\"$HOME/projekt\",\"message\":\"Rauchtest\",\"provider\":\"claude\",\"stream\":false}" \
+  --data-binary "{\"projectPath\":\"$HOME/projekt\",\"message\":\"Smoketest\",\"provider\":\"claude\",\"stream\":false}" \
   "$url/api/agent" || true
 [ -s "$work/claude-called" ] || fail "CloudCLI hat claude aus PATH nicht aufgerufen"
 ok "claude aus PATH aufgerufen"
 
-echo "-- Bündel"
+echo "-- Bundle"
 (cd "$bundle/app" && "$bundle/node/bin/node" -e '
   require("better-sqlite3");
   const pty = require("node-pty");
@@ -116,8 +116,8 @@ echo "-- Bündel"
 ok "better-sqlite3 und node-pty"
 
 if find "$bundle/app/node_modules" -type d \( -name codex-linux-x64 -o -name claude-agent-sdk-linux-x64 \) | grep -q .; then
-  fail "Codex- oder SDK-Binary noch im Bündel"
+  fail "Codex- oder SDK-Binary noch im Bundle"
 fi
 ok "ohne Codex- und SDK-Binary"
 
-echo "Rauchtest bestanden."
+echo "Smoketest bestanden."

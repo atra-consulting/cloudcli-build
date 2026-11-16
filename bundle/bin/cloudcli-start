@@ -1,5 +1,5 @@
 #!/bin/sh
-# Startet CloudCLI aus diesem Bündel im Platform-Modus (ohne eigenes Login),
+# Startet CloudCLI aus diesem Bundle im Platform-Modus (ohne eigenes Login),
 # mit dem Wächter cloudcli-guard.mjs davor. Die Anmeldung muss davor liegen:
 # auf dem Arbeitsplatz eine Coder-App mit share = "owner".
 #

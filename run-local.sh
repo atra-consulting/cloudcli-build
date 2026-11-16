@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =============================================================================
-# Probiert ein Bündel lokal aus: Container ubuntu:24.04 (linux/amd64) wie auf
+# Probiert ein Bundle lokal aus: Container ubuntu:24.04 (linux/amd64) wie auf
 # dem Arbeitsplatz, mit Claude Code und dem Benutzer dev.
 #
 #   ./run-local.sh [out/cloudcli-...-linux-x64.tar.gz]   (Standard: neuestes)
@@ -18,7 +18,7 @@ cd "$(dirname "$0")"
 
 tarball=${1:-$(ls -t out/cloudcli-*-linux-x64.tar.gz 2>/dev/null | head -n 1 || true)}
 [ -n "$tarball" ] && [ -f "$tarball" ] || {
-  echo "Kein Bündel gefunden. Erst ./build.sh ausführen." >&2
+  echo "Kein Bundle gefunden. Erst ./build.sh ausführen." >&2
   exit 1
 }
 tarball=$(cd "$(dirname "$tarball")" && pwd)/$(basename "$tarball")
@@ -67,7 +67,7 @@ echo "Gestartet: $(basename "$tarball")"
 echo "Warte auf CloudCLI ..."
 for _ in $(seq 1 180); do
   # SOURCE.txt erscheint im Log erst nach cloudcli-ensure-user
-  if docker logs "$name" 2>/dev/null | grep -q '^Bündel:' &&
+  if docker logs "$name" 2>/dev/null | grep -q '^Bundle:' &&
     curl -fsS -o /dev/null http://127.0.0.1:3001/health 2>/dev/null; then
     echo "Bereit: http://localhost:3001"
     exit 0

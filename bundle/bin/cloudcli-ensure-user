@@ -38,7 +38,7 @@ until curl -fsS -o /dev/null "$url/health" 2>/dev/null; do
   sleep 1
 done
 
-# JSON mit dem Node des Bündels bauen: Namen mit Anführungszeichen oder Umlauten
+# JSON mit dem Node des Bundles bauen: Namen mit Anführungszeichen oder Umlauten
 json() { "$node" -e 'const a = process.argv.slice(1); const o = {}; for (let i = 0; i < a.length; i += 2) o[a[i]] = a[i + 1]; process.stdout.write(JSON.stringify(o));' "$@"; }
 get() { curl -fsS "$url$1" || { echo "Abfrage $1 fehlgeschlagen" >&2; exit 1; }; }
 post() { curl -fsS -o /dev/null -X POST -H 'Content-Type: application/json' --data-binary "$2" "$url$1" || { echo "Aufruf $1 fehlgeschlagen" >&2; exit 1; }; }
