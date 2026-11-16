@@ -1,0 +1,21 @@
+#!/bin/sh
+# Startet CloudCLI aus diesem Bündel im Platform-Modus (ohne eigenes Login),
+# mit dem Wächter cloudcli-guard.mjs davor. Die Anmeldung muss davor liegen:
+# auf dem Arbeitsplatz eine Coder-App mit share = "owner".
+#
+# Umgebung (alle optional):
+#   CLOUDCLI_HOST           Adresse des Wächters, Standard 127.0.0.1
+#   SERVER_PORT             Port des Wächters, Standard 3001
+#   CLOUDCLI_INTERNAL_PORT  Port von CloudCLI auf 127.0.0.1, Standard 13001
+#   DATABASE_PATH           Standard ~/.cloudcli/auth.db
+#   WORKSPACES_ROOT         Wurzel für Projekte, Standard $HOME
+#   CLAUDE_CLI_PATH         Befehl von Claude Code, Standard claude (aus PATH)
+# Die allgemeine Variable HOST wird ignoriert (siehe cloudcli-guard.mjs).
+set -eu
+bundle=$(cd "$(dirname "$0")/.." && pwd)
+
+# Mitgeliefertes Node hinten anhängen: Kindprozesse finden so ein node, im
+# Terminal der UI bleibt aber das Node des Teilnehmers vorn.
+export PATH="${PATH:-/usr/bin:/bin}:$bundle/node/bin"
+
+exec "$bundle/node/bin/node" "$bundle/bin/cloudcli-guard.mjs"

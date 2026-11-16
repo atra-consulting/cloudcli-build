@@ -1,0 +1,78 @@
+#!/bin/sh
+# Richtet CloudCLI für den Platform-Modus ein. Wiederholbar, jeder Schritt nur,
+# solange er noch fehlt:
+#
+#   1. Benutzer anlegen. Im Platform-Modus laufen alle Anfragen als erster
+#      Benutzer der Datenbank. Das Passwort ist zufällig und wird verworfen
+#      (in der Datenbank liegt nur sein Hash). CloudCLI fragt es im
+#      Platform-Modus nie ab, die Anmeldung übernimmt Coder.
+#   2. Mit GIT_NAME und GIT_EMAIL: Git-Identität setzen (CloudCLI schreibt sie
+#      auch nach git config --global) und den Einrichtungsassistenten als
+#      erledigt markieren. Nur beim ersten Mal: Später geänderte Werte des
+#      Teilnehmers bleiben.
+#
+# Aufruf:   cloudcli-ensure-user BENUTZERNAME [GIT_NAME GIT_EMAIL]
+# Umgebung: SERVER_PORT (Standard 3001). Der Server muss laufen oder starten.
+# Ende mit Fehler, wenn ein Schritt scheitert; ein neuer Aufruf holt ihn nach.
+set -eu
+user=${1:?Benutzername}
+git_name=${2:-}
+git_email=${3:-}
+case "$user" in
+  *[!A-Za-z0-9._-]*) echo "Benutzername mit unerlaubten Zeichen: $user" >&2; exit 2 ;;
+esac
+[ "${#user}" -ge 3 ] || { echo "Benutzername braucht mindestens 3 Zeichen" >&2; exit 2; }
+case "${git_name:+n}${git_email:+e}" in
+  "" | ne) ;;
+  *) echo "GIT_NAME und GIT_EMAIL nur zusammen" >&2; exit 2 ;;
+esac
+
+bundle=$(cd "$(dirname "$0")/.." && pwd)
+node="$bundle/node/bin/node"
+url="http://127.0.0.1:${SERVER_PORT:-3001}"
+
+i=0
+until curl -fsS -o /dev/null "$url/health" 2>/dev/null; do
+  i=$((i + 1))
+  [ "$i" -lt 120 ] || { echo "CloudCLI antwortet nicht unter $url" >&2; exit 1; }
+  sleep 1
+done
+
+# JSON mit dem Node des Bündels bauen: Namen mit Anführungszeichen oder Umlauten
+json() { "$node" -e 'const a = process.argv.slice(1); const o = {}; for (let i = 0; i < a.length; i += 2) o[a[i]] = a[i + 1]; process.stdout.write(JSON.stringify(o));' "$@"; }
+get() { curl -fsS "$url$1" || { echo "Abfrage $1 fehlgeschlagen" >&2; exit 1; }; }
+post() { curl -fsS -o /dev/null -X POST -H 'Content-Type: application/json' --data-binary "$2" "$url$1" || { echo "Aufruf $1 fehlgeschlagen" >&2; exit 1; }; }
+
+# 1. Benutzer
+status=$(get /api/auth/status)
+case "$status" in
+  *'"needsSetup":true'*)
+    password=$(head -c 48 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | cut -c1-32)
+    post /api/auth/register "$(json username "$user" password "$password")"
+    echo "Benutzer $user angelegt"
+    ;;
+  *'"needsSetup":false'*) echo "Benutzer existiert schon" ;;
+  *) echo "Unerwartete Antwort von /api/auth/status: $status" >&2; exit 1 ;;
+esac
+
+# 2. Git-Identität und Einrichtungsassistent
+[ -n "$git_name" ] || exit 0
+onboarding=$(get /api/user/onboarding-status)
+case "$onboarding" in
+  *'"hasCompletedOnboarding":true'*) echo "Einrichtung schon erledigt" ;;
+  *'"hasCompletedOnboarding":false'*)
+    post /api/user/git-config "$(json gitName "$git_name" gitEmail "$git_email")"
+    # CloudCLI meldet Erfolg, auch wenn git config --global scheitert: selbst prüfen
+    if command -v git >/dev/null 2>&1; then
+      [ "$(git config --global user.email 2>/dev/null || true)" = "$git_email" ] || {
+        echo "git config --global wurde nicht gesetzt" >&2
+        exit 1
+      }
+    else
+      echo "Hinweis: git fehlt, nur CloudCLI kennt die Git-Identität" >&2
+    fi
+    post /api/user/complete-onboarding '{}'
+    echo "Git-Identität gesetzt, Einrichtung erledigt"
+    ;;
+  *) echo "Unerwartete Antwort von /api/user/onboarding-status: $onboarding" >&2; exit 1 ;;
+esac

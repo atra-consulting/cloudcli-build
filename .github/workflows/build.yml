@@ -1,0 +1,138 @@
+# =============================================================================
+# Baut das CloudCLI-Bündel und veröffentlicht es als GitHub Release.
+#
+# - Pull Request: bauen und Rauchtest, kein Release
+# - Push auf main und Start von Hand: bauen, Rauchtest, Release mit
+#   Tag = Name des Bündels (cloudcli-<tag>-atra.<n>-linux-x64). Gibt es den
+#   Tag schon, baut der Workflow nicht neu und überschreibt nichts: Für einen
+#   Neubau release.version erhöhen.
+#
+# Zwei Jobs: Der Bau führt fremden Code aus (npm-Skripte von upstream und
+# Abhängigkeiten) und hat deshalb nur Leserechte, ohne gespeichertes Token im
+# Checkout. Nur der Release-Job darf schreiben; er führt keinen fremden Code
+# aus, sondern lädt das fertige Archiv hoch.
+#
+# Actions sind auf Commit-SHAs gepinnt, die Version steht dahinter.
+# =============================================================================
+name: Build
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+    paths:
+      - "*.version"
+      - "*.commit"
+      - "*.sha256"
+      - build.sh
+      - scripts/**
+      - bundle/**
+      - .github/workflows/build.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    outputs:
+      name: ${{ steps.name.outputs.name }}
+      upstream: ${{ steps.name.outputs.upstream }}
+      commit: ${{ steps.name.outputs.commit }}
+      exists: ${{ steps.exists.outputs.exists }}
+    steps:
+      - name: Repo auschecken
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Name des Bündels
+        id: name
+        run: |
+          upstream=$(tr -d '[:space:]' < cloudcli.version)
+          commit=$(tr -d '[:space:]' < cloudcli.commit)
+          release=$(tr -d '[:space:]' < release.version)
+          [[ $upstream =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "cloudcli.version ungültig" >&2; exit 1; }
+          [[ $commit =~ ^[0-9a-f]{40}$ ]] || { echo "cloudcli.commit ungültig" >&2; exit 1; }
+          [[ $release =~ ^[0-9]+$ ]] || { echo "release.version ungültig" >&2; exit 1; }
+          {
+            echo "name=cloudcli-${upstream}-atra.${release}-linux-x64"
+            echo "upstream=$upstream"
+            echo "commit=$commit"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Release schon vorhanden?
+        id: exists
+        if: github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NAME: ${{ steps.name.outputs.name }}
+        run: |
+          if gh release view "$NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Release $NAME gibt es schon. Für einen Neubau release.version erhöhen." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Bauen und Rauchtest
+        if: steps.exists.outputs.exists != 'true'
+        run: ./build.sh
+
+      - name: Bündel für den Release-Job ablegen
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && steps.exists.outputs.exists != 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: bundle
+          path: |
+            out/${{ steps.name.outputs.name }}.tar.gz
+            out/${{ steps.name.outputs.name }}.tar.gz.sha256
+          if-no-files-found: error
+          retention-days: 3
+
+  release:
+    needs: build
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && needs.build.outputs.exists != 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: Bündel holen
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: bundle
+          path: out
+
+      - name: Prüfsumme kontrollieren
+        env:
+          NAME: ${{ needs.build.outputs.name }}
+        run: cd out && sha256sum -c "$NAME.tar.gz.sha256"
+
+      - name: Release anlegen
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NAME: ${{ needs.build.outputs.name }}
+          UPSTREAM: ${{ needs.build.outputs.upstream }}
+          COMMIT: ${{ needs.build.outputs.commit }}
+        run: |
+          sha=$(cut -d' ' -f1 "out/$NAME.tar.gz.sha256")
+          cat > "$RUNNER_TEMP/notes.md" <<EOF
+          CloudCLI UI ${UPSTREAM} als eigenständiges Bündel für Coder-Arbeitsplätze (linux-x64, Ubuntu 24.04), gebaut mit \`VITE_IS_PLATFORM=true\` (kein eigenes Login, Anmeldung über Coder).
+
+          **SHA-256:** \`${sha}\`
+
+          **Quellcode (AGPL-3.0-or-later):**
+          - CloudCLI UI, unverändert gebaut: https://github.com/siteboon/claudecodeui/tree/${COMMIT} (Tag ${UPSTREAM})
+          - Bau-Skripte, Startskripte und Wächter: https://github.com/${GITHUB_REPOSITORY}/tree/${GITHUB_SHA}
+
+          Abweichend vom Quellstand: Frontend mit \`VITE_IS_PLATFORM=true\`, nur Laufzeit-Abhängigkeiten, ohne \`@openai/codex-linux-x64\` und \`@anthropic-ai/claude-agent-sdk-linux-x64\`. Details in \`SOURCE.txt\` im Archiv.
+          EOF
+          gh release create "$NAME" "out/$NAME.tar.gz" "out/$NAME.tar.gz.sha256" \
+            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "$NAME" --notes-file "$RUNNER_TEMP/notes.md"
+          echo "Release $NAME angelegt." >> "$GITHUB_STEP_SUMMARY"
