@@ -224,6 +224,16 @@ Daraus ergibt sich der Name von Bundle und Release-Tag: `cloudcli-v1.37.9-atra.1
 Der Workflow überschreibt **nie** ein Release. Gibt es den Tag schon, baut er nicht neu. Für einen Rebuild
 derselben upstream-Version, etwa mit neuerem Node oder geändertem Skript, `release.version` erhöhen.
 
+Im Repo sind **Immutable releases** aktiv (ab `atra.2`): Nach der Veröffentlichung lassen sich Tag und Dateien
+eines Releases nicht mehr ändern oder löschen, auch nicht von Admins. Ein gelöschter Tag-Name ist für immer
+verbraucht. GitHub erzeugt zu jedem Release eine signierte Attestation über Tag, Commit und Dateien:
+
+```bash
+gh release verify cloudcli-v1.37.9-atra.2-linux-x64 --repo atra-consulting/cloudcli-build
+gh release verify-asset cloudcli-v1.37.9-atra.2-linux-x64 cloudcli-v1.37.9-atra.2-linux-x64.tar.gz \
+  --repo atra-consulting/cloudcli-build
+```
+
 ## Neue upstream-Version übernehmen
 
 1. [Releases von claudecodeui](https://github.com/siteboon/claudecodeui/releases) und `CHANGELOG.md` lesen.
@@ -300,6 +310,8 @@ Weitere Punkte:
 - **Herkunft prüfbar.** Node gegen eine feste Prüfsumme im Repo, Quellcode als fester Commit (ein
   verschobener Tag bricht den Build ab), Basis-Image als fester Digest, Actions als feste Commit-SHAs. Die
   Plätze prüfen das Archiv gegen die SHA-256 im Template.
+- **Releases unveränderlich.** Immutable releases sind aktiv: Tag und Dateien eines veröffentlichten Releases
+  lassen sich nicht austauschen, GitHub signiert jedes Release (Attestation).
 - **Build ohne Schreibrecht.** Der Build führt fremden Code aus (npm-Skripte) und läuft deshalb in einem Job
   ohne Schreibrecht und ohne im Checkout gespeichertes Token. Der Build-Container bekommt nur das Job-Token
   mit reinen Leserechten (`GITHUB_TOKEN`), weil `@vscode/ripgrep` ripgrep über die GitHub-API lädt und

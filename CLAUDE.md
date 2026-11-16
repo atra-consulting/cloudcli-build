@@ -12,6 +12,8 @@ und Fehlersuche: [README.md](README.md).
   eine andere Adresse als `127.0.0.1` bringen (Ausnahme: `CLOUDCLI_HOST` in `run-local.sh`, nur im
   Container). Regeln des Wächters nur mit Prüfung in `scripts/smoke.sh` ändern.
 - **Releases nie überschreiben.** Rebuild derselben upstream-Version: `release.version` erhöhen.
+  Immutable releases sind im Repo aktiv: Tag und Dateien sind nach der Veröffentlichung gesperrt, ein
+  Tag-Name ist auch nach dem Löschen verbraucht.
 - **Feste Versionen:** upstream-Commit, Node mit Prüfsumme, Basis-Image mit Digest, Actions mit Commit-SHA.
   Kein `latest`.
 - **Workflow:** Der Build-Job führt fremden Code aus und bekommt nur Leserechte. Schreibrecht nur im
