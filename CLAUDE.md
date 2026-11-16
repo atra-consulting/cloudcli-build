@@ -7,15 +7,15 @@ und Fehlersuche: [README.md](README.md).
 ## Regeln
 
 - **Quellcode von upstream nie ändern** (keine Patches, kein Fork, auch nicht `package.json`). Grund: AGPL §13.
-  Anpassungen nur über Bauoptionen, Umgebungsvariablen und `bundle/bin/`.
+  Anpassungen nur über Build-Optionen, Umgebungsvariablen und `bundle/bin/`.
 - **Sicherheit des Platform-Modus:** CloudCLI hat dann kein Login. Nichts darf CloudCLI oder den Wächter auf
   eine andere Adresse als `127.0.0.1` bringen (Ausnahme: `CLOUDCLI_HOST` in `run-local.sh`, nur im
   Container). Regeln des Wächters nur mit Prüfung in `scripts/smoke.sh` ändern.
-- **Releases nie überschreiben.** Neubau derselben upstream-Version: `release.version` erhöhen.
+- **Releases nie überschreiben.** Rebuild derselben upstream-Version: `release.version` erhöhen.
 - **Feste Versionen:** upstream-Commit, Node mit Prüfsumme, Basis-Image mit Digest, Actions mit Commit-SHA.
   Kein `latest`.
-- **Workflow:** Der Bau-Job führt fremden Code aus und bekommt nur Leserechte. Schreibrecht nur im
-  Release-Job, der keinen Code aus dem Bau ausführt.
+- **Workflow:** Der Build-Job führt fremden Code aus und bekommt nur Leserechte. Schreibrecht nur im
+  Release-Job, der keinen Code aus dem Build ausführt.
 - **Öffentliches Repo:** keine internen Adressen, Projekt-IDs, Personennamen, Repo-Pfade der
   Coder-Installation oder Secrets.
 - Sprache in Doku, Kommentaren und Commits: Deutsch, kurze Sätze, ein Begriff pro Sache
@@ -26,7 +26,7 @@ und Fehlersuche: [README.md](README.md).
 ## Befehle
 
 ```bash
-./build.sh                  # Bau + Smoketest im Container ubuntu:24.04 (linux/amd64)
+./build.sh                  # Build + Smoketest im Container ubuntu:24.04 (linux/amd64)
 ./run-local.sh              # neuestes Bundle lokal starten, http://localhost:3001
 docker logs -f cloudcli-local
 bash -n build.sh run-local.sh scripts/*.sh && sh -n bundle/bin/cloudcli-start bundle/bin/cloudcli-ensure-user \
@@ -37,7 +37,7 @@ bash -n build.sh run-local.sh scripts/*.sh && sh -n bundle/bin/cloudcli-start bu
 
 | Thema | Datei |
 |---|---|
-| Bauablauf, Entfernen von Codex und SDK-Binary, Paketumfang | `scripts/build-bundle.sh` |
+| Build-Ablauf, Entfernen von Codex und SDK-Binary, Paketumfang | `scripts/build-bundle.sh` |
 | Was als „funktioniert“ gilt | `scripts/smoke.sh` |
 | Start, `PATH` | `bundle/bin/cloudcli-start` |
 | Wächter: Adressen, Ports, Regeln gegen fremde Seiten | `bundle/bin/cloudcli-guard.mjs` |
@@ -55,7 +55,7 @@ Bei jeder neuen upstream-Version prüfen (Pfade relativ zu `siteboon/claudecodeu
 | Auth im Platform-Modus: erster Benutzer der DB | `server/modules/auth/auth.middleware.ts` |
 | Agent-API ohne Key im Platform-Modus | `server/modules/agent/agent.routes.ts` (`validateExternalApiKey`) |
 | WebSocket-Pfade `/shell`, `/ws` und ihre Auth | `server/index.ts`, `server/modules/websocket/` |
-| Platform-Modus im Frontend (Bauzeit), Prüfmarke `username:"platform-user"` | `src/shared/utils.ts`, `src/modules/auth/context/AuthContext.tsx` |
+| Platform-Modus im Frontend (Build-Zeit), Prüfmarke `username:"platform-user"` | `src/shared/utils.ts`, `src/modules/auth/context/AuthContext.tsx` |
 | Registrierung, nur ohne Benutzer | `server/modules/auth/auth.service.ts`, `auth.routes.ts` |
 | Git-Identität und Onboarding | `server/modules/user/user.routes.ts`, `user.service.ts` |
 | Claude Code aus `PATH` statt SDK-Binary | `server/shared/claude-cli-path.ts`, `server/modules/providers/list/claude/claude-runtime.provider.ts` |

@@ -5,9 +5,9 @@
 # - Push auf main und Start von Hand: bauen, Smoketest, Release mit
 #   Tag = Name des Bundles (cloudcli-<tag>-atra.<n>-linux-x64). Gibt es den
 #   Tag schon, baut der Workflow nicht neu und überschreibt nichts: Für einen
-#   Neubau release.version erhöhen.
+#   Rebuild release.version erhöhen.
 #
-# Zwei Jobs: Der Bau führt fremden Code aus (npm-Skripte von upstream und
+# Zwei Jobs: Der Build führt fremden Code aus (npm-Skripte von upstream und
 # Abhängigkeiten) und hat deshalb nur Leserechte, ohne gespeichertes Token im
 # Checkout. Nur der Release-Job darf schreiben; er führt keinen fremden Code
 # aus, sondern lädt das fertige Archiv hoch.
@@ -77,10 +77,10 @@ jobs:
         run: |
           if gh release view "$NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
-            echo "Release $NAME gibt es schon. Für einen Neubau release.version erhöhen." >> "$GITHUB_STEP_SUMMARY"
+            echo "Release $NAME gibt es schon. Für einen Rebuild release.version erhöhen." >> "$GITHUB_STEP_SUMMARY"
           fi
 
-      - name: Bauen und Smoketest
+      - name: Build und Smoketest
         if: steps.exists.outputs.exists != 'true'
         env:
           # Für den ripgrep-Download von @vscode/ripgrep (sonst Rate-Limit, 403).
@@ -132,7 +132,7 @@ jobs:
 
           **Quellcode (AGPL-3.0-or-later):**
           - CloudCLI UI, unverändert gebaut: https://github.com/siteboon/claudecodeui/tree/${COMMIT} (Tag ${UPSTREAM})
-          - Bau-Skripte, Startskripte und Wächter: https://github.com/${GITHUB_REPOSITORY}/tree/${GITHUB_SHA}
+          - Build-Skripte, Startskripte und Wächter: https://github.com/${GITHUB_REPOSITORY}/tree/${GITHUB_SHA}
 
           Abweichend vom Quellstand: Frontend mit \`VITE_IS_PLATFORM=true\`, nur Laufzeit-Abhängigkeiten, ohne \`@openai/codex-linux-x64\` und \`@anthropic-ai/claude-agent-sdk-linux-x64\`. Details in \`SOURCE.txt\` im Archiv.
           EOF

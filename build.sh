@@ -2,7 +2,7 @@
 # =============================================================================
 # Baut das CloudCLI-Bundle für Coder-Arbeitsplätze (linux-x64, Ubuntu 24.04).
 #
-# Läuft auf dem Mac wie in GitHub Actions gleich: Der eigentliche Bau
+# Läuft auf dem Mac wie in GitHub Actions gleich: Der eigentliche Build
 # (scripts/build-bundle.sh) läuft in einem Container ubuntu:24.04 für
 # linux/amd64, fest auf einen Digest gepinnt. So passen glibc und die nativen
 # Module zu den Plätzen. Auf Apple Silicon emuliert Docker Desktop amd64
@@ -19,13 +19,13 @@ cd "$(dirname "$0")"
 image="ubuntu:24.04@sha256:73b999393d07f2bf65a40373778a44dc9a6d54ad7718d29247d8ff9413c4d6a8"
 mkdir -p out
 
-# Stand der Bau-Skripte für SOURCE.txt; "-dirty" bei lokalen Änderungen
+# Stand der Build-Skripte für SOURCE.txt; "-dirty" bei lokalen Änderungen
 build_commit=$(git rev-parse --verify -q HEAD 2>/dev/null || echo unbekannt)
 if [ "$build_commit" != unbekannt ] && [ -n "$(git status --porcelain 2>/dev/null)" ]; then
   build_commit="$build_commit-dirty"
 fi
 
-# npm-Cache als benanntes Volume: zweiter Bau lädt nicht alles neu.
+# npm-Cache als benanntes Volume: zweiter Build lädt nicht alles neu.
 # GITHUB_TOKEN (nur falls gesetzt): Das postinstall von @vscode/ripgrep lädt
 # ripgrep über die GitHub-API. Anonym gibt es dort auf geteilten IPs (GitHub
 # Actions) schnell 403. In CI ist es das Job-Token mit reinen Leserechten.

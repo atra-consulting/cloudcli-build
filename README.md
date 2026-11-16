@@ -6,7 +6,7 @@ Fertig gebaute **[CloudCLI UI](https://github.com/siteboon/claudecodeui)** (frü
 Coder-Arbeitsplätze: Claude Code im Browser, mit Chat, Terminal, Dateien und Git, ohne eigenes Login.
 
 Dieses Repo verändert den Code von CloudCLI nicht. Es baut den Quellcode eines festen upstream-Commits mit
-einer anderen Bauoption, packt ihn mit allem, was er zur Laufzeit braucht, in ein einziges Archiv, setzt einen
+einer anderen Build-Option, packt ihn mit allem, was er zur Laufzeit braucht, in ein einziges Archiv, setzt einen
 kleinen Wächter davor und veröffentlicht das Ganze als GitHub Release.
 
 ---
@@ -17,7 +17,7 @@ kleinen Wächter davor und veröffentlicht das Ganze als GitHub Release.
 - [So spielt alles zusammen](#so-spielt-alles-zusammen)
 - [Das Bundle](#das-bundle)
 - [Schnellstart](#schnellstart)
-- [Bauen](#bauen)
+- [Build](#build)
 - [Lokal ausprobieren](#lokal-ausprobieren)
 - [Versionen und Releases](#versionen-und-releases)
 - [Neue upstream-Version übernehmen](#neue-upstream-version-übernehmen)
@@ -38,10 +38,10 @@ zweites Login mit eigenem Passwort wäre doppelt und müsste als Geheimnis auf d
 
 CloudCLI kennt dafür den **Platform-Modus** (`VITE_IS_PLATFORM=true`): kein Login, alle Anfragen laufen als
 der eine Benutzer der Datenbank, die Anmeldung übernimmt ein Proxy davor. Der Haken: Der Schalter wirkt
-**beim Bauen**, Vite schreibt ihn fest ins Frontend. Das npm-Paket `@cloudcli-ai/cloudcli` ist ohne ihn
+**beim Build**, Vite schreibt ihn fest ins Frontend. Das npm-Paket `@cloudcli-ai/cloudcli` ist ohne ihn
 gebaut. Also bauen wir selbst, einmal zentral statt auf jedem Platz:
 
-| | Bau auf jedem Platz | Zentrales Bundle (dieses Repo) |
+| | Build auf jedem Platz | Zentrales Bundle (dieses Repo) |
 |---|---|---|
 | Erster Start | 2–4 min, rund 2 GB RAM-Spitze | Download von rund 210 MB, Sekunden zum Entpacken |
 | Abhängig von | npm-Registry, GitHub, Build-Werkzeugen | einem GitHub Release |
@@ -88,7 +88,7 @@ cloudcli/
 │   ├── cloudcli-guard.mjs    Wächter vor CloudCLI (nur Node-Bordmittel)
 │   └── cloudcli-ensure-user  richtet Benutzer und Git-Identität ein (wiederholbar)
 ├── LICENSE, NOTICE           aus upstream (AGPL-3.0-or-later)
-└── SOURCE.txt                Quelle, Commit, Abweichungen, Stand der Bau-Skripte
+└── SOURCE.txt                Quelle, Commit, Abweichungen, Stand der Build-Skripte
 ```
 
 **Eigenes Node:** Die nativen Module (`better-sqlite3`, `node-pty`, `bcrypt`) sind für genau diese
@@ -144,19 +144,19 @@ Scheitert ein Schritt, endet das Skript mit Fehler, ein neuer Aufruf holt ihn na
 open http://localhost:3001
 ```
 
-## Bauen
+## Build
 
 Voraussetzung ist nur Docker. `build.sh` startet `scripts/build-bundle.sh` in einem Container
 `ubuntu:24.04` für `linux/amd64`, fest auf einen Digest gepinnt. Damit passen glibc und native Module zu den
 Arbeitsplätzen (Ubuntu 24.04, x86_64), egal ob auf einem Mac oder in GitHub Actions gebaut wird. Auf Apple
-Silicon emuliert Docker Desktop amd64 über Rosetta. Ein Bau dauert dort rund 2,5 Minuten, der npm-Cache
+Silicon emuliert Docker Desktop amd64 über Rosetta. Ein Build dauert dort rund 2,5 Minuten, der npm-Cache
 liegt im Volume `cloudcli-build-npm`.
 
-Was der Bau tut:
+Was der Build tut:
 
 1. Node (`node.version`) von nodejs.org laden und gegen die feste Prüfsumme aus `node.sha256` prüfen
 2. `siteboon/claudecodeui` am Tag aus `cloudcli.version` klonen; der Commit muss `cloudcli.commit`
-   entsprechen, sonst bricht der Bau ab (verschobener Tag)
+   entsprechen, sonst bricht der Build ab (verschobener Tag)
 3. `npm ci` (ohne Electron-Download), dann `VITE_IS_PLATFORM=true npm run build`
 4. prüfen, dass das Frontend wirklich im Platform-Modus gebaut ist
 5. Entwicklungsabhängigkeiten entfernen, Codex- und SDK-Binary löschen
@@ -209,7 +209,7 @@ den lokalen Test gedacht.
 | `cloudcli.commit` | Commit, auf den der Tag zeigen muss | `f86543f…` |
 | `node.version` | Node.js, gleiche Hauptversion wie upstream (`.nvmrc`) | `v22.23.5` |
 | `node.sha256` | SHA-256 von `node-<version>-linux-x64.tar.xz` | `cdeb867…` |
-| `release.version` | Zähler für Neubauten derselben upstream-Version | `1` |
+| `release.version` | Zähler für Rebuilds derselben upstream-Version | `1` |
 
 Daraus ergibt sich der Name von Bundle und Release-Tag: `cloudcli-v1.37.9-atra.1-linux-x64`.
 
@@ -217,11 +217,11 @@ Daraus ergibt sich der Name von Bundle und Release-Tag: `cloudcli-v1.37.9-atra.1
 
 - **build** (nur Leserechte, kein Token im Checkout): bauen und Smoketest. Bei einem Pull Request endet
   der Workflow hier.
-- **release** (Schreibrecht, nur auf `main`): nimmt das fertige Archiv aus dem Bau-Job, prüft die
+- **release** (Schreibrecht, nur auf `main`): nimmt das fertige Archiv aus dem Build-Job, prüft die
   Prüfsumme und legt das Release mit Archiv, Prüfsumme und Links auf den Quellcode an. Dieser Job führt
   keinen Code von upstream aus.
 
-Der Workflow überschreibt **nie** ein Release. Gibt es den Tag schon, baut er nicht neu. Für einen Neubau
+Der Workflow überschreibt **nie** ein Release. Gibt es den Tag schon, baut er nicht neu. Für einen Rebuild
 derselben upstream-Version, etwa mit neuerem Node oder geändertem Skript, `release.version` erhöhen.
 
 ## Neue upstream-Version übernehmen
@@ -298,10 +298,10 @@ Weitere Punkte:
   Benutzer festlegen. Aus dem Browser blockt das der Wächter; lokal hat ohnehin nur der Platz selbst Zugriff.
   Den Healthcheck der Coder-App auf `/api/auth/user` legen (siehe oben).
 - **Herkunft prüfbar.** Node gegen eine feste Prüfsumme im Repo, Quellcode als fester Commit (ein
-  verschobener Tag bricht den Bau ab), Basis-Image als fester Digest, Actions als feste Commit-SHAs. Die
+  verschobener Tag bricht den Build ab), Basis-Image als fester Digest, Actions als feste Commit-SHAs. Die
   Plätze prüfen das Archiv gegen die SHA-256 im Template.
-- **Bau ohne Schreibrecht.** Der Bau führt fremden Code aus (npm-Skripte) und läuft deshalb in einem Job
-  ohne Schreibrecht und ohne im Checkout gespeichertes Token. Der Bau-Container bekommt nur das Job-Token
+- **Build ohne Schreibrecht.** Der Build führt fremden Code aus (npm-Skripte) und läuft deshalb in einem Job
+  ohne Schreibrecht und ohne im Checkout gespeichertes Token. Der Build-Container bekommt nur das Job-Token
   mit reinen Leserechten (`GITHUB_TOKEN`), weil `@vscode/ripgrep` ripgrep über die GitHub-API lädt und
   anonym auf den geteilten IPs der Runner am Rate-Limit scheitert.
 
@@ -309,7 +309,7 @@ Weitere Punkte:
 
 | Symptom | Ursache und Lösung |
 |---|---|
-| Login-Seite statt Projekte | Frontend ohne Platform-Modus gebaut. Der Bau bricht in diesem Fall eigentlich ab, `scripts/build-bundle.sh` prüfen. |
+| Login-Seite statt Projekte | Frontend ohne Platform-Modus gebaut. Der Build bricht in diesem Fall eigentlich ab, `scripts/build-bundle.sh` prüfen. |
 | `Platform mode: No user found in database` | `cloudcli-ensure-user` lief nicht. Aufrufen, während der Server läuft. |
 | Einrichtungsassistent erscheint | `cloudcli-ensure-user` ohne `GIT_NAME` und `GIT_EMAIL` aufgerufen. |
 | `Abgelehnt: …` (HTTP 403) | Der Wächter hat eine Anfrage abgelehnt. Grund steht in der Antwort und im Log (`cloudcli-guard: abgelehnt …`). |
@@ -318,7 +318,7 @@ Weitere Punkte:
 | Chat: `spawn claude ENOENT` | Claude Code fehlt im `PATH` des Servers. `PATH` setzen oder `CLAUDE_CLI_PATH`. |
 | `Tag … zeigt auf …, erwartet …` | Der upstream-Tag wurde verschoben. Änderung ansehen, dann `cloudcli.commit` bewusst anpassen. |
 | `run-local.sh` hängt bei „Warte auf CloudCLI“ | Beim ersten Start installiert der Container Claude Code. `docker logs -f cloudcli-local` |
-| Bau scheitert bei `npm ci` | Netz oder neue upstream-Abhängigkeit. Log mit `./build.sh 2>&1 \| tee build.log` |
+| Build scheitert bei `npm ci` | Netz oder neue upstream-Abhängigkeit. Log mit `./build.sh 2>&1 \| tee build.log` |
 
 ## Aufbau des Repos
 
@@ -326,14 +326,14 @@ Weitere Punkte:
 cloudcli-build/
 ├── cloudcli.version, cloudcli.commit   upstream-Tag und erwarteter Commit
 ├── node.version, node.sha256           Node.js für das Bundle und seine Prüfsumme
-├── release.version                     Zähler für Neubauten
+├── release.version                     Zähler für Rebuilds
 ├── build.sh                            baut im Container (lokal und in CI gleich)
 ├── run-local.sh                        lokaler Test in Docker
 ├── scripts/
-│   ├── build-bundle.sh                 eigentlicher Bau (läuft im Container)
+│   ├── build-bundle.sh                 eigentlicher Build (läuft im Container)
 │   └── smoke.sh                        Smoketest gegen ein fertiges Archiv
 ├── bundle/bin/                         Startskript, Wächter, Einrichtung (kommen ins Bundle)
-├── .github/workflows/build.yml         Bau, Smoketest, Release
+├── .github/workflows/build.yml         Build, Smoketest, Release
 ├── CLAUDE.md                           Hinweise für Claude Code und Betreuer
 ├── LICENSE                             AGPL-3.0
 └── README.md

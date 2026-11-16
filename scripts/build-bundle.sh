@@ -6,8 +6,8 @@
 # Schritte:
 #   1. Node (node.version) von nodejs.org, Prüfsumme fest aus node.sha256
 #   2. siteboon/claudecodeui am Tag aus cloudcli.version klonen, Commit muss
-#      cloudcli.commit entsprechen (ein verschobener Tag bricht den Bau ab)
-#   3. npm ci und Bau mit VITE_IS_PLATFORM=true: Frontend ohne eigenes Login,
+#      cloudcli.commit entsprechen (ein verschobener Tag bricht den Build ab)
+#   3. npm ci und Build mit VITE_IS_PLATFORM=true: Frontend ohne eigenes Login,
 #      die Anmeldung übernimmt Coder (App mit share = "owner")
 #   4. Entwicklungsabhängigkeiten, Codex- und SDK-Binary entfernen
 #   5. Bundle packen: Node, App (Umfang wie npm pack), Startskripte, Wächter,
@@ -38,12 +38,12 @@ build_commit=${BUILD_SCRIPTS_COMMIT:-unbekannt}
 [[ $node_sha256 =~ ^[0-9a-f]{64}$ ]] || fail "node.sha256: keine SHA-256: $node_sha256"
 [[ $release =~ ^[0-9]+$ ]] || fail "release.version: keine Zahl: $release"
 [[ $build_commit =~ ^([0-9a-f]{40}(-dirty)?|unbekannt)$ ]] || fail "BUILD_SCRIPTS_COMMIT ungültig: $build_commit"
-[ "$(uname -m)" = x86_64 ] || fail "Bau nur für x86_64, hier: $(uname -m)"
+[ "$(uname -m)" = x86_64 ] || fail "Build nur für x86_64, hier: $(uname -m)"
 
 name="cloudcli-${upstream}-atra.${release}-linux-x64"
-echo "== Baue $name (Node $node_version, Bau-Skripte $build_commit)"
+echo "== Build $name (Node $node_version, Build-Skripte $build_commit)"
 
-echo "== Pakete für den Bau"
+echo "== Pakete für den Build"
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
 # iproute2: ss für den Smoketest (Adressen, auf denen gelauscht wird)
@@ -78,7 +78,7 @@ echo "== npm ci"
 export ELECTRON_SKIP_BINARY_DOWNLOAD=1 HUSKY=0 CI=true
 npm ci --no-audit --no-fund --loglevel=error
 
-echo "== Bau mit VITE_IS_PLATFORM=true"
+echo "== Build mit VITE_IS_PLATFORM=true"
 VITE_IS_PLATFORM=true npm run build
 # Vite setzt den Schalter fest ein: Im Platform-Modus bleibt der Zweig mit dem
 # festen Benutzer "platform-user" stehen, sonst entfernt ihn der Minifier.
@@ -140,9 +140,9 @@ Abweichend vom Quellstand enthält das Bundle:
   - Frontend gebaut mit VITE_IS_PLATFORM=true (kein eigenes Login)
   - node_modules nur mit Laufzeit-Abhängigkeiten, ohne
     @openai/codex-linux-x64 und @anthropic-ai/claude-agent-sdk-linux-x64
-  - bin/: Startskripte und Wächter aus den Bau-Skripten
+  - bin/: Startskripte und Wächter aus den Build-Skripten
 
-Bau-Skripte:   https://github.com/atra-consulting/cloudcli-build/tree/${build_commit%-dirty}
+Build-Skripte:   https://github.com/atra-consulting/cloudcli-build/tree/${build_commit%-dirty}
                (Stand ${build_commit}, AGPL-3.0-or-later)
 EOF
 
