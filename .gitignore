@@ -6,3 +6,4 @@ out/
 
 # Interne Pläne (enthalten Details der Coder-Installation, nicht veröffentlichen)
 plans/
+/.idea/
