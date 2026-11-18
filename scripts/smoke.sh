@@ -88,6 +88,10 @@ status_of() { curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$@" || true;
 [ "$(status_of -X POST -H 'Origin: https://fremd.example' --data 'message=x' "$url/api/agent")" = 403 ] || fail "fremder Origin ohne Fetch Metadata nicht abgelehnt"
 [ "$(status_of -H 'Sec-Fetch-Site: cross-site' -H 'Sec-Fetch-Mode: navigate' -H 'Sec-Fetch-Dest: document' "$url/")" = 200 ] || fail "Öffnen der App über einen Link abgelehnt"
 [ "$(status_of -H 'Sec-Fetch-Site: cross-site' -H 'Sec-Fetch-Mode: navigate' -H 'Sec-Fetch-Dest: iframe' "$url/")" = 403 ] || fail "Einbetten in fremdes iframe nicht abgelehnt"
+# Service Worker von CloudCLI holt Navigationen neu: Modus same-origin, Site bleibt
+[ "$(status_of -H 'Sec-Fetch-Site: same-site' -H 'Sec-Fetch-Mode: same-origin' -H 'Sec-Fetch-Dest: document' "$url/")" = 200 ] || fail "Navigation über den Service Worker abgelehnt"
+[ "$(status_of -H 'Sec-Fetch-Site: same-site' -H 'Sec-Fetch-Mode: same-origin' -H 'Sec-Fetch-Dest: empty' "$url/api/auth/user")" = 403 ] || fail "same-origin-Modus ohne Dest document nicht abgelehnt"
+[ "$(status_of -X POST -H 'Sec-Fetch-Site: same-site' -H 'Sec-Fetch-Mode: same-origin' -H 'Sec-Fetch-Dest: document' -H 'Content-Type: application/json' --data '{}' "$url/api/agent")" = 403 ] || fail "POST mit Dest document nicht abgelehnt"
 [ "$(status_of -X POST -H 'Sec-Fetch-Site: same-origin' -H 'Content-Type: application/json' --data '{}' "$url/api/auth/register")" = 403 ] || fail "Registrierung aus dem Browser nicht abgelehnt"
 ws=(-H 'Connection: Upgrade' -H 'Upgrade: websocket' -H 'Sec-WebSocket-Version: 13' -H 'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==')
 [ "$(status_of --max-time 3 "${ws[@]}" -H 'Origin: https://fremd.example' -H 'Sec-Fetch-Site: cross-site' -H 'Sec-Fetch-Mode: websocket' "$url/shell")" = 403 ] || fail "fremder WebSocket an /shell nicht abgelehnt"

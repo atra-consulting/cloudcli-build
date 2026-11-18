@@ -13,7 +13,7 @@
 // außer:
 //   - Browser-Anfragen von einer anderen Seite (Sec-Fetch-Site same-site oder
 //     cross-site). Erlaubt bleibt nur das Öffnen der App als Seite (GET,
-//     Navigation, kein iframe).
+//     Navigation, auch über den Service Worker, kein iframe).
 //   - Browser ohne Fetch Metadata: Origin muss zum Host passen.
 //   - Registrierung und Login aus dem Browser. Im Platform-Modus braucht sie
 //     niemand; den Benutzer legt cloudcli-ensure-user lokal an.
@@ -75,7 +75,12 @@ function rejection(req) {
   }
 
   if (site === 'same-site' || site === 'cross-site') {
-    const openAsPage = mode === 'navigate'
+    // Öffnen als Seite: Navigation (Link, Knopf im Coder-Dashboard). Der
+    // Service Worker von CloudCLI (public/sw.js) holt Navigationen mit
+    // fetch(event.request) neu; der Modus wird dabei same-origin, Site und
+    // Dest bleiben. Sicher: dest=document gibt es nur bei Navigationen, und
+    // ein same-origin-Request an eine fremde Origin verlässt den Browser nicht.
+    const openAsPage = (mode === 'navigate' || (mode === 'same-origin' && dest === 'document'))
       && (dest === undefined || dest === 'document')
       && (req.method === 'GET' || req.method === 'HEAD');
     return openAsPage ? null : `Anfrage von einer anderen Seite (Sec-Fetch-Site: ${site})`;
@@ -98,7 +103,9 @@ function rejection(req) {
 }
 
 function logRejection(req, why) {
-  console.warn(`cloudcli-guard: abgelehnt ${req.method} ${(req.url || '').split('?')[0]}: ${why}`);
+  const h = (name) => req.headers[name] ?? '-';
+  console.warn(`cloudcli-guard: abgelehnt ${req.method} ${(req.url || '').split('?')[0]}: ${why}`
+    + ` (mode ${h('sec-fetch-mode')}, dest ${h('sec-fetch-dest')})`);
 }
 
 // --- CloudCLI als Kindprozess ---------------------------------------------------
