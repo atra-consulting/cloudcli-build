@@ -55,8 +55,9 @@ docker run -d --name "$name" --platform linux/amd64 \
       echo "Installiere Claude Code"
       curl -fsSL https://claude.ai/install.sh | bash
     fi
-    # 0.0.0.0 nur im Container, nach außen nur 127.0.0.1 des Macs (docker -p)
-    CLOUDCLI_HOST=0.0.0.0 /tmp/cloudcli/bin/cloudcli-start &
+    # 0.0.0.0 nur im Container, nach außen nur 127.0.0.1 des Macs (docker -p).
+    # Ohne Coder davor gibt es keinen Host der App: Host-Prüfung aus.
+    CLOUDCLI_HOST=0.0.0.0 CLOUDCLI_ALLOW_ANY_HOST=1 /tmp/cloudcli/bin/cloudcli-start &
     # Auf dem Platz kommen Name und E-Mail aus dem Coder-Konto, hier Platzhalter
     /tmp/cloudcli/bin/cloudcli-ensure-user dev "${GIT_NAME:-Dummy Teilnehmer}" "${GIT_EMAIL:-dummy.teilnehmer@example.com}"
     cat /tmp/cloudcli/SOURCE.txt

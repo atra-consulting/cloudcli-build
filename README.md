@@ -62,15 +62,16 @@ gebaut. Also bauen wir selbst, einmal zentral statt auf jedem Platz:
  ┌──────────────────────────────────────────── Arbeitsplatz (VM) ──┐
  │  127.0.0.1:3001   cloudcli-guard  (lehnt fremde Seiten ab)      │
  │        │                                                        │
- │  127.0.0.1:13001  CloudCLI (Platform-Modus)                     │
+ │  127.0.0.3:13001  CloudCLI (Platform-Modus)                     │
  │        ├── claude  (Claude Code des Platzes, aus PATH)          │
  │        ├── git, Terminal (node-pty), Dateien in ~/workspace     │
  │        └── ~/.cloudcli/auth.db (Benutzer, Einstellungen)        │
  └─────────────────────────────────────────────────────────────────┘
 ```
 
-Beide Ports liegen nur auf `127.0.0.1`. Von außen kommt man ausschließlich über Coder heran, und auch dann
-nur mit Anfragen, die von der App selbst stammen (siehe [Sicherheit](#sicherheit)).
+Der Wächter lauscht nur auf `127.0.0.1`, CloudCLI nur auf `127.0.0.3`. Von außen kommt man ausschließlich
+über Coder heran, und auch dann nur mit Anfragen, die von der App selbst stammen (siehe
+[Sicherheit](#sicherheit)).
 
 ## Das Bundle
 
@@ -113,9 +114,12 @@ Kindprozesse finden so ein `node`, im Terminal der UI bleibt das Node des Teilne
 
 | Variable | Standard | Bedeutung |
 |---|---|---|
-| `CLOUDCLI_HOST` | `127.0.0.1` | Adresse des Wächters. Nur für Container ändern (siehe `run-local.sh`). |
+| `CLOUDCLI_HOST` | `127.0.0.1` | Adresse des Wächters. Eine andere Adresse nur mit `CLOUDCLI_ALLOW_ANY_HOST=1`, also nur im Container (siehe `run-local.sh`). |
 | `SERVER_PORT` | `3001` | Port des Wächters, auf den die Coder-App zeigt |
-| `CLOUDCLI_INTERNAL_PORT` | `13001` | Port von CloudCLI, immer auf `127.0.0.1` |
+| `CLOUDCLI_INTERNAL_PORT` | `13001` | Port von CloudCLI, immer auf `127.0.0.3` |
+| `CLOUDCLI_APP_HOST_PREFIX` | – | Anfang des Hosts der Coder-App: Slug mit `--`, z. B. `cloudcli--`. Pflicht. |
+| `CLOUDCLI_APP_HOST_SUFFIX` | – | Ende des Hosts der Coder-App: Punkt und Domain der Wildcard-Apps, z. B. `.coder.example`. Pflicht. |
+| `CLOUDCLI_ALLOW_ANY_HOST` | – | `1`: keine Host-Prüfung, dann ohne `PREFIX` und `SUFFIX`. Nur im Container (`run-local.sh`). |
 | `DATABASE_PATH` | `~/.cloudcli/auth.db` | SQLite-Datenbank (Benutzer, Einstellungen, API-Keys) |
 | `WORKSPACES_ROOT` | `$HOME` | Wurzel, unter der CloudCLI Projekte anlegen darf |
 | `CLAUDE_CLI_PATH` | `claude` | Befehl oder Pfad von Claude Code |
@@ -169,7 +173,8 @@ Der Smoketest entpackt das Archiv in ein leeres `HOME` und prüft:
 |---|---|
 | Einrichtung | Benutzer und Git-Identität werden angelegt (in CloudCLI und `git config --global`), der Einrichtungsassistent gilt als erledigt, ein zweiter Aufruf ändert nichts |
 | Server | `/health`, geschützte API antwortet **ohne** Token (Platform-Modus), Frontend wird ausgeliefert |
-| Adressen | trotz geerbtem `HOST=0.0.0.0` lauschen beide Ports nur auf `127.0.0.1` |
+| Adressen | trotz geerbtem `HOST=0.0.0.0` lauscht der Wächter nur auf `127.0.0.1`, CloudCLI nur auf `127.0.0.3`; `127.0.0.1:<interner Port>` ist geschlossen |
+| Host | Start ohne gültige Host-Prüfung bricht ab. Host der App und lokale Hosts gehen durch. Abgelehnt werden: Port-Freigabe (`3001--…`), fremde Domain mit `cloudcli--`, Punkt am Ende, doppelte und fehlende Host-Zeile, Anfrage-Ziel in absoluter Form, auch beim WebSocket |
 | Wächter | Anfragen anderer Seiten, fremder Origin, Einbetten im iframe, Registrierung aus dem Browser und fremder WebSocket werden abgelehnt; eigene Anfragen, eigener WebSocket und das Öffnen über einen Link gehen durch |
 | Claude | CloudCLI ruft `claude` aus `PATH` auf (mit einem Platzhalter-Skript) |
 | Bundle | `better-sqlite3` und `node-pty` laden, ein Terminal liefert Ausgabe; Codex- und SDK-Binary fehlen |
@@ -266,7 +271,9 @@ tar -xzf /tmp/$release.tar.gz -C ~/.local          # ergibt ~/.local/cloudcli
 ```
 
 Davor steht eine Coder-App mit `subdomain = true` und `share = "owner"`, die auf `http://127.0.0.1:3001`
-zeigt. Als Healthcheck eignet sich `http://127.0.0.1:3001/api/auth/user`: Er meldet erst Erfolg, wenn
+zeigt. Der Dienst bekommt `CLOUDCLI_APP_HOST_PREFIX=<slug>--` (Slug der App, z. B. `cloudcli--`) und
+`CLOUDCLI_APP_HOST_SUFFIX=.<wildcard-domain>` (Domain der Subdomain-Apps von Coder). Ohne beide startet der
+Wächter nicht. Als Healthcheck eignet sich `http://127.0.0.1:3001/api/auth/user`: Er meldet erst Erfolg, wenn
 `cloudcli-ensure-user` den Benutzer angelegt hat.
 
 ## Platform-Modus: was anders ist
@@ -285,12 +292,23 @@ zeigt. Als Healthcheck eignet sich `http://127.0.0.1:3001/api/auth/user`: Er mel
 
 Im Platform-Modus prüft CloudCLI weder Anmeldung noch Herkunft einer Anfrage: CORS ist offen, WebSocket
 prüft keinen Origin, `/api/agent` startet Claude ohne Key. Wer CloudCLI erreicht, kann im Terminal alles,
-was der Benutzer des Platzes kann. Drei Schichten schützen davor:
+was der Benutzer des Platzes kann. Vier Schichten schützen davor:
 
-1. **Nur `127.0.0.1`.** Wächter und CloudCLI lauschen nur lokal. Die allgemeine Variable `HOST` wird
-   ignoriert, der Smoketest prüft das.
+1. **Nur lokal.** Der Wächter lauscht auf `127.0.0.1`, CloudCLI auf `127.0.0.3`. Die allgemeine Variable
+   `HOST` wird ignoriert, der Smoketest prüft das. Warum nicht beide auf `127.0.0.1`: Die Port-Weiterleitung
+   von Coder (`https://<port>--<agent>--<workspace>--<user>.<coder-domain>`) verbindet sich immer mit
+   `127.0.0.1:<port>`. Mit CloudCLI auf `127.0.0.1:13001` käme `13001--…` am Wächter vorbei.
 2. **Coder davor.** Die Coder-App mit `share = "owner"` lässt nur den angemeldeten Besitzer des Platzes durch.
-3. **Wächter (`cloudcli-guard.mjs`).** Der Browser des Besitzers schickt sein Coder-Cookie auch bei
+3. **Host-Prüfung im Wächter.** Teilnehmer können Ports ihres Platzes selbst freigeben, in der AGPL-Version
+   von Coder bis `public`. Eine Freigabe von `3001` hieße Terminal und Dateien ohne Login. Coder reicht den
+   Host der Anfrage unverändert weiter und leitet nach ihm weiter. Der Wächter lässt deshalb nur den Host
+   der App (`<PREFIX><label><SUFFIX>`, z. B. `cloudcli--main--platz--user.<coder-domain>`) und lokale Hosts
+   (`127.0.0.1`, `localhost`, `[::1]`, für Healthcheck und `cloudcli-ensure-user`) durch. `3001--…`
+   bekommt 403. Die Endung verhindert, dass ein fremder Name wie `cloudcli--x.example`, der per DNS auf
+   `127.0.0.1` zeigt, durchkommt (DNS-Rebinding mit einem Browser auf dem Platz). Die Prüfung setzt
+   `share = "owner"` an der App voraus: Mit `authenticated` oder `public` kämen andere über den Host der
+   App herein.
+4. **Wächter (`cloudcli-guard.mjs`).** Der Browser des Besitzers schickt sein Coder-Cookie auch bei
    Anfragen, die eine andere Seite derselben Site auslöst, etwa die App eines anderen Teilnehmers unter
    `*.<coder-domain>`. Der Wächter lehnt deshalb ab:
    - Browser-Anfragen mit `Sec-Fetch-Site: same-site` oder `cross-site`, außer dem Öffnen der App als Seite
@@ -300,9 +318,18 @@ was der Benutzer des Platzes kann. Drei Schichten schützen davor:
    - bei Browsern ohne Fetch Metadata: einen `Origin`, der nicht zum Host passt
    - Registrierung und Login aus dem Browser; im Platform-Modus braucht sie niemand
 
-   Anfragen ohne Browser-Merkmale (curl, Healthcheck von Coder) gehen durch.
+   Anfragen ohne Browser-Merkmale (curl, Healthcheck von Coder) gehen durch, wenn der Host passt.
 
 Weitere Punkte:
+
+- **Andere lokale Dienste schützt der Wächter nicht.** Jeder Port auf `127.0.0.1` ist über die
+  Port-Weiterleitung von Coder für den Besitzer erreichbar, mit derselben Lücke wie oben (Cookie, same-site).
+  Das gilt auch für Server, die CloudCLI selbst startet (Plugins mit eigenem Server, OpenCode). OpenCode ist
+  auf den Plätzen nicht installiert; Plugins kann ein Teilnehmer selbst hinzufügen.
+- **Browser-Use geht nicht.** CloudCLI ruft für sein Browser-Use-MCP sich selbst unter
+  `127.0.0.1:<CLOUDCLI_INTERNAL_PORT>` auf; CloudCLI sieht diesen Port als `SERVER_PORT`
+  (`server/modules/browser-use/browser-use.service.ts`). Dort lauscht wegen Schicht 1 nichts. Ändern ginge
+  nur mit einem Patch, den es hier nicht gibt.
 
 - **Keine Geheimnisse im Bundle.** Das Passwort aus `cloudcli-ensure-user` ist zufällig und wird verworfen.
   Die Claude-Anmeldung liegt beim Teilnehmer in `~/.claude`.
@@ -327,6 +354,8 @@ Weitere Punkte:
 | `Platform mode: No user found in database` | `cloudcli-ensure-user` lief nicht. Aufrufen, während der Server läuft. |
 | Einrichtungsassistent erscheint | `cloudcli-ensure-user` ohne `GIT_NAME` und `GIT_EMAIL` aufgerufen. |
 | `Abgelehnt: …` (HTTP 403) | Der Wächter hat eine Anfrage abgelehnt. Grund steht in der Antwort und im Log (`cloudcli-guard: abgelehnt …`). |
+| `Abgelehnt: Host gehört nicht zur App (…)` | `CLOUDCLI_APP_HOST_PREFIX` oder `_SUFFIX` passt nicht zum Host der Coder-App, oder der Aufruf kam über eine Port-Weiterleitung (`3001--…`). App über ihren eigenen Link öffnen. |
+| Dienst startet nicht, `CLOUDCLI_APP_HOST_… fehlt` | Beide Variablen im Dienst setzen (siehe oben). |
 | `CloudCLI nicht erreichbar` (HTTP 502) | CloudCLI startet noch oder ist abgestürzt. Log ansehen. |
 | Chat: „Not logged in · Please run /login“ | Claude Code ist gefunden, aber nicht angemeldet. Im Tab „Shell“: `claude`, dann `/login`. |
 | Chat: `spawn claude ENOENT` | Claude Code fehlt im `PATH` des Servers. `PATH` setzen oder `CLAUDE_CLI_PATH`. |

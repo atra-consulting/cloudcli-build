@@ -9,22 +9,40 @@
 // Ohne Prüfung könnte so eine Seite Terminal und Agent des Platzes benutzen.
 //
 // Dieser Wächter startet CloudCLI als Kindprozess auf einem internen Port
-// (immer 127.0.0.1) und nimmt selbst die Anfragen an. Er reicht sie weiter,
-// außer:
+// und nimmt selbst die Anfragen an. CloudCLI lauscht auf 127.0.0.3, nicht auf
+// 127.0.0.1: Die Port-Weiterleitung von Coder (<port>--<agent>--…) verbindet
+// sich immer mit 127.0.0.1:<port> und käme so nicht am Wächter vorbei.
+// Der Wächter reicht Anfragen weiter, außer:
+//   - Host ist weder der Host der App (<prefix><…><suffix>, z. B.
+//     cloudcli--main--platz--user.coder.example) noch lokal (127.0.0.1,
+//     localhost, [::1]). Damit führt eine Port-Freigabe des Wächter-Ports
+//     (3001--…, auch „public“) nicht zu CloudCLI. Coder reicht den Host der
+//     Anfrage unverändert durch und leitet nach ihm weiter. Die Endung schützt
+//     vor fremden Namen wie cloudcli--x.example, die per DNS auf 127.0.0.1
+//     zeigen (DNS-Rebinding mit einem Browser auf dem Platz).
+//   - mehrere Host-Zeilen, Anfrage-Ziel nicht in der Form /pfad
 //   - Browser-Anfragen von einer anderen Seite (Sec-Fetch-Site same-site oder
 //     cross-site). Erlaubt bleibt nur das Öffnen der App als Seite (GET,
 //     Navigation, auch über den Service Worker, kein iframe).
 //   - Browser ohne Fetch Metadata: Origin muss zum Host passen.
 //   - Registrierung und Login aus dem Browser. Im Platform-Modus braucht sie
 //     niemand; den Benutzer legt cloudcli-ensure-user lokal an.
-// Anfragen ohne Browser-Merkmale (curl, Coder-Healthcheck) gehen durch.
+// Anfragen ohne Browser-Merkmale (curl, Coder-Healthcheck) gehen sonst durch.
 //
 // Der Quellcode von CloudCLI bleibt unverändert. Nur Node-Bordmittel.
 //
 // Umgebung:
-//   CLOUDCLI_HOST           Adresse des Wächters, Standard 127.0.0.1
+//   CLOUDCLI_HOST           Adresse des Wächters, Standard 127.0.0.1. Eine andere
+//                           Adresse nur mit CLOUDCLI_ALLOW_ANY_HOST=1.
 //   SERVER_PORT             Port des Wächters, Standard 3001
-//   CLOUDCLI_INTERNAL_PORT  Port von CloudCLI auf 127.0.0.1, Standard 13001
+//   CLOUDCLI_INTERNAL_PORT  Port von CloudCLI auf 127.0.0.3, Standard 13001
+//   CLOUDCLI_APP_HOST_PREFIX  Anfang des Hosts der Coder-App: Slug mit „--“,
+//                           z. B. cloudcli--
+//   CLOUDCLI_APP_HOST_SUFFIX  Ende des Hosts der Coder-App: Punkt und Domain der
+//                           Wildcard-Apps, z. B. .coder.example
+//   CLOUDCLI_ALLOW_ANY_HOST=1 keine Host-Prüfung, nur lokal im Container
+//                           (run-local.sh). Ohne diese Variable startet der
+//                           Wächter nur mit PREFIX und SUFFIX.
 // Die allgemeine Variable HOST wird bewusst ignoriert: CloudCLI würde sonst
 // mit einem geerbten HOST=0.0.0.0 ohne Login auf allen Adressen lauschen.
 // =============================================================================
@@ -49,7 +67,30 @@ function port(name, fallback) {
 
 const listenHost = process.env.CLOUDCLI_HOST || '127.0.0.1';
 const listenPort = port('SERVER_PORT', 3001);
-const innerHost = '127.0.0.1';
+const innerHost = '127.0.0.3';
+const appHostPrefix = (process.env.CLOUDCLI_APP_HOST_PREFIX || '').toLowerCase();
+const appHostSuffix = (process.env.CLOUDCLI_APP_HOST_SUFFIX || '').toLowerCase();
+const allowAnyHost = process.env.CLOUDCLI_ALLOW_ANY_HOST === '1';
+if (allowAnyHost) {
+  if (appHostPrefix || appHostSuffix) {
+    console.error('cloudcli-guard: CLOUDCLI_ALLOW_ANY_HOST=1 schließt CLOUDCLI_APP_HOST_PREFIX und _SUFFIX aus');
+    process.exit(2);
+  }
+} else {
+  if (!/^[a-z0-9-]+--$/.test(appHostPrefix)) {
+    console.error(`cloudcli-guard: CLOUDCLI_APP_HOST_PREFIX fehlt oder hat nicht die Form <slug>--: ${appHostPrefix}`);
+    process.exit(2);
+  }
+  // Auf einer anderen Adresse könnte jeder Client den Host der App vortäuschen
+  if (listenHost !== '127.0.0.1') {
+    console.error(`cloudcli-guard: CLOUDCLI_HOST=${listenHost} nur mit CLOUDCLI_ALLOW_ANY_HOST=1 (Container)`);
+    process.exit(2);
+  }
+  if (!/^(\.[a-z0-9-]+){2,}$/.test(appHostSuffix)) {
+    console.error(`cloudcli-guard: CLOUDCLI_APP_HOST_SUFFIX fehlt oder hat nicht die Form .<domain>: ${appHostSuffix}`);
+    process.exit(2);
+  }
+}
 const innerPort = port('CLOUDCLI_INTERNAL_PORT', 13001);
 if (innerPort === listenPort) {
   console.error('cloudcli-guard: CLOUDCLI_INTERNAL_PORT und SERVER_PORT müssen verschieden sein');
@@ -60,6 +101,34 @@ if (innerPort === listenPort) {
 
 const BROWSER_FORBIDDEN_PATHS = new Set(['/api/auth/register', '/api/auth/login']);
 const HOP_BY_HOP = ['connection', 'keep-alive', 'proxy-connection', 'upgrade', 'te', 'trailer'];
+const LOCAL_HOSTNAMES = new Set(['127.0.0.1', 'localhost', '[::1]']);
+
+/** Hostname ohne Port, klein geschrieben. */
+function hostnameOf(host) {
+  const h = String(host ?? '').trim().toLowerCase();
+  if (h.startsWith('[')) return h.slice(0, h.indexOf(']') + 1);
+  return h.replace(/:\d*$/, '');
+}
+
+/** Host der App: <prefix><ein Label ohne Punkt><suffix> */
+function isAppHost(hostname) {
+  if (!hostname.startsWith(appHostPrefix) || !hostname.endsWith(appHostSuffix)) return false;
+  const middle = hostname.slice(appHostPrefix.length, hostname.length - appHostSuffix.length);
+  return /^[a-z0-9-]+$/.test(middle);
+}
+
+/** Grund, warum der Host nicht passt, oder null. */
+function hostRejection(req) {
+  if (allowAnyHost) return null;
+  let hostLines = 0;
+  for (let i = 0; i < req.rawHeaders.length; i += 2) {
+    if (req.rawHeaders[i].toLowerCase() === 'host') hostLines += 1;
+  }
+  if (hostLines !== 1) return `${hostLines} Host-Zeilen`;
+  const hostname = hostnameOf(req.headers.host);
+  if (LOCAL_HOSTNAMES.has(hostname) || isAppHost(hostname)) return null;
+  return `Host gehört nicht zur App (${hostname || 'leer'})`;
+}
 
 /** Grund für eine Ablehnung oder null. */
 function rejection(req) {
@@ -68,7 +137,13 @@ function rejection(req) {
   const dest = req.headers['sec-fetch-dest'];
   const origin = req.headers.origin;
   const fromBrowser = site !== undefined || origin !== undefined;
-  const pathname = (req.url || '/').split('?')[0].replace(/\/+$/, '') || '/';
+  // Nur /pfad: sonst griffe der Vergleich mit BROWSER_FORBIDDEN_PATHS nicht
+  // (z. B. GET http://h/api/auth/register HTTP/1.1)
+  if (!(req.url || '').startsWith('/')) return 'Anfrage-Ziel nicht in der Form /pfad';
+  const pathname = req.url.split('?')[0].replace(/\/+$/, '') || '/';
+
+  const badHost = hostRejection(req);
+  if (badHost) return badHost;
 
   if (fromBrowser && BROWSER_FORBIDDEN_PATHS.has(pathname)) {
     return 'Registrierung und Login sind im Platform-Modus nur lokal möglich';
@@ -216,5 +291,6 @@ server.on('error', (err) => {
 });
 
 server.listen(listenPort, listenHost, () => {
-  console.log(`cloudcli-guard: lauscht auf ${listenHost}:${listenPort}, CloudCLI intern auf ${innerHost}:${innerPort}`);
+  console.log(`cloudcli-guard: lauscht auf ${listenHost}:${listenPort}, CloudCLI intern auf ${innerHost}:${innerPort}, `
+    + (allowAnyHost ? 'ohne Host-Prüfung' : `Host ${appHostPrefix}…${appHostSuffix} oder lokal`));
 });

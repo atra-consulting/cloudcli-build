@@ -6,7 +6,11 @@
 # Umgebung (alle optional):
 #   CLOUDCLI_HOST           Adresse des Wächters, Standard 127.0.0.1
 #   SERVER_PORT             Port des Wächters, Standard 3001
-#   CLOUDCLI_INTERNAL_PORT  Port von CloudCLI auf 127.0.0.1, Standard 13001
+#   CLOUDCLI_INTERNAL_PORT  Port von CloudCLI auf 127.0.0.3, Standard 13001
+#   CLOUDCLI_APP_HOST_PREFIX  Anfang des Hosts der Coder-App, z. B. cloudcli--
+#   CLOUDCLI_APP_HOST_SUFFIX  Ende des Hosts der Coder-App, z. B. .coder.example
+#                           Beide Pflicht, außer mit CLOUDCLI_ALLOW_ANY_HOST=1
+#                           (nur im Container, siehe Wächter).
 #   DATABASE_PATH           Standard ~/.cloudcli/auth.db
 #   WORKSPACES_ROOT         Wurzel für Projekte, Standard $HOME
 #   CLAUDE_CLI_PATH         Befehl von Claude Code, Standard claude (aus PATH)

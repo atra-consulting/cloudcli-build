@@ -46,10 +46,28 @@ chmod 755 "$work/stub/claude"
 export PATH="$work/stub:$PATH"
 
 export SERVER_PORT=3901 CLOUDCLI_INTERNAL_PORT=13901
+# Wie auf dem Arbeitsplatz: nur Host der App oder lokal
+export CLOUDCLI_APP_HOST_PREFIX=cloudcli-- CLOUDCLI_APP_HOST_SUFFIX=.coder.example
+unset CLOUDCLI_ALLOW_ANY_HOST
 # Ein geerbtes HOST=0.0.0.0 darf nichts öffnen (cloudcli-guard ignoriert HOST)
 export HOST=0.0.0.0
 unset CLOUDCLI_HOST
 url="http://127.0.0.1:$SERVER_PORT"
+
+echo "-- Start nur mit Host-Prüfung"
+# Ohne PREFIX/SUFFIX, mit ungültigem Wert oder widersprüchlich: Start bricht ab
+refuses() {
+  local rc=0
+  timeout 20 env "$@" "$bundle/bin/cloudcli-start" >"$work/refused.log" 2>&1 || rc=$?
+  [ "$rc" = 2 ] || fail "Start mit $* nicht abgelehnt (Code $rc): $(head -n 3 "$work/refused.log")"
+}
+refuses -u CLOUDCLI_APP_HOST_PREFIX -u CLOUDCLI_APP_HOST_SUFFIX
+refuses -u CLOUDCLI_APP_HOST_SUFFIX
+refuses CLOUDCLI_APP_HOST_PREFIX=cloudcli
+refuses CLOUDCLI_APP_HOST_SUFFIX=example
+refuses CLOUDCLI_ALLOW_ANY_HOST=1
+refuses CLOUDCLI_HOST=0.0.0.0
+ok "Start ohne gültige Host-Prüfung abgelehnt"
 
 "$bundle/bin/cloudcli-start" >"$work/server.log" 2>&1 &
 pid=$!
@@ -75,10 +93,14 @@ curl -fsS "$url/" | grep -q '<div id="root"' || fail "Startseite ohne Frontend"
 ok "Platform-Modus: API ohne Token, Frontend wird ausgeliefert"
 
 echo "-- Adressen"
-listening=$(ss -Hltn "( sport = :$SERVER_PORT or sport = :$CLOUDCLI_INTERNAL_PORT )" | awk '{print $4}')
-[ -n "$listening" ] || fail "nichts lauscht auf $SERVER_PORT/$CLOUDCLI_INTERNAL_PORT"
-echo "$listening" | grep -qv '^127\.0\.0\.1:' && fail "lauscht nicht nur auf 127.0.0.1: $(echo "$listening" | tr '\n' ' ')"
-ok "nur 127.0.0.1 ($(echo "$listening" | tr '\n' ' '))"
+# Wächter nur auf 127.0.0.1. CloudCLI nur auf 127.0.0.3: Die Port-Weiterleitung
+# von Coder verbindet sich mit 127.0.0.1:<port> und darf CloudCLI nicht erreichen.
+guard_listen=$(ss -Hltn "( sport = :$SERVER_PORT )" | awk '{print $4}')
+inner_listen=$(ss -Hltn "( sport = :$CLOUDCLI_INTERNAL_PORT )" | awk '{print $4}')
+[ "$guard_listen" = "127.0.0.1:$SERVER_PORT" ] || fail "Wächter lauscht nicht nur auf 127.0.0.1: $(echo "$guard_listen" | tr '\n' ' ')"
+[ "$inner_listen" = "127.0.0.3:$CLOUDCLI_INTERNAL_PORT" ] || fail "CloudCLI lauscht nicht nur auf 127.0.0.3: $(echo "$inner_listen" | tr '\n' ' ')"
+curl -s -o /dev/null --max-time 3 "http://127.0.0.1:$CLOUDCLI_INTERNAL_PORT/health" && fail "CloudCLI über 127.0.0.1:$CLOUDCLI_INTERNAL_PORT erreichbar"
+ok "Wächter $guard_listen, CloudCLI $inner_listen, 127.0.0.1:$CLOUDCLI_INTERNAL_PORT geschlossen"
 
 echo "-- Wächter"
 status_of() { curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$@" || true; }
@@ -99,6 +121,38 @@ ws=(-H 'Connection: Upgrade' -H 'Upgrade: websocket' -H 'Sec-WebSocket-Version: 
 [ "$(status_of --max-time 3 "${ws[@]}" -H 'Origin: https://fremd.example' -H 'Sec-Fetch-Site: cross-site' -H 'Sec-Fetch-Mode: websocket' "$url/shell")" = 403 ] || fail "fremder WebSocket an /shell nicht abgelehnt"
 [ "$(status_of --max-time 3 "${ws[@]}" -H 'Sec-Fetch-Site: same-origin' -H 'Sec-Fetch-Mode: websocket' "$url/shell")" = 101 ] || fail "eigener WebSocket an /shell nicht durchgereicht"
 ok "fremde Seiten, iframe, Browser-Registrierung und fremder WebSocket abgelehnt; eigene Anfragen durch"
+
+# Host: nur App (cloudcli--…) oder lokal. Port-Freigabe 3001--… darf nicht durch.
+app_host='cloudcli--main--platz--teilnehmer.coder.example'
+[ "$(status_of -H "Host: $app_host" "$url/api/auth/user")" = 200 ] || fail "Host der App abgelehnt"
+[ "$(status_of -H 'Host: CloudCLI--main--platz--teilnehmer.coder.example:443' "$url/api/auth/user")" = 200 ] || fail "Host der App mit Großbuchstaben und Port abgelehnt"
+[ "$(status_of -H "Host: localhost:$SERVER_PORT" "$url/api/auth/user")" = 200 ] || fail "Host localhost abgelehnt"
+[ "$(status_of -H "Host: [::1]:$SERVER_PORT" "$url/api/auth/user")" = 200 ] || fail "Host [::1] abgelehnt"
+[ "$(status_of -H "Host: $SERVER_PORT--main--platz--teilnehmer.coder.example" "$url/api/auth/user")" = 403 ] || fail "Port-Freigabe ($SERVER_PORT--…) nicht abgelehnt"
+[ "$(status_of -H 'Host: x-cloudcli--main--platz--teilnehmer.coder.example' "$url/api/auth/user")" = 403 ] || fail "fremder Host mit cloudcli-- in der Mitte nicht abgelehnt"
+[ "$(status_of -H 'Host: 127.0.0.1.coder.example' "$url/api/auth/user")" = 403 ] || fail "Host mit 127.0.0.1 als Anfang nicht abgelehnt"
+[ "$(status_of -H 'Host: cloudcli--x.evil.example' "$url/api/auth/user")" = 403 ] || fail "fremde Domain mit cloudcli-- (DNS-Rebinding) nicht abgelehnt"
+[ "$(status_of -H 'Host: cloudcli--a.b.coder.example' "$url/api/auth/user")" = 403 ] || fail "Host mit mehreren Labels vor der Endung nicht abgelehnt"
+[ "$(status_of -H "Host: $app_host." "$url/api/auth/user")" = 403 ] || fail "Host mit Punkt am Ende nicht abgelehnt"
+# curl schickt nur eine Host-Zeile: rohe Anfrage über /dev/tcp
+raw_status() {
+  local line=""
+  exec 3<>"/dev/tcp/127.0.0.1/$SERVER_PORT"
+  printf '%s\r\n' "$@" "Connection: close" "" >&3
+  IFS= read -r -t 10 line <&3 || true
+  exec 3<&- 3>&-
+  echo "$line" | awk '{print $2}'
+}
+code=$(raw_status 'GET /api/auth/user HTTP/1.1' "Host: $app_host" 'Host: 127.0.0.1')
+[ "$code" = 400 ] || [ "$code" = 403 ] || fail "doppelte Host-Zeile nicht abgelehnt: HTTP $code"
+[ "$(raw_status 'GET /api/auth/user HTTP/1.1' "Host: $app_host")" = 200 ] || fail "rohe Anfrage mit Host der App abgelehnt"
+# Ohne Host antwortet Node selbst mit 400, der Wächter sieht die Anfrage nicht
+code=$(status_of -H 'Host:' "$url/api/auth/user")
+[ "$code" = 400 ] || [ "$code" = 403 ] || fail "fehlender Host nicht abgelehnt: HTTP $code"
+[ "$(status_of -X POST --request-target "http://127.0.0.1:$SERVER_PORT/api/auth/register" -H 'Sec-Fetch-Site: same-origin' -H 'Content-Type: application/json' --data '{}' "$url/")" = 403 ] || fail "Anfrage-Ziel in absoluter Form nicht abgelehnt"
+[ "$(status_of --max-time 3 "${ws[@]}" -H "Host: $SERVER_PORT--main--platz--teilnehmer.coder.example" -H 'Sec-Fetch-Site: same-origin' -H 'Sec-Fetch-Mode: websocket' "$url/shell")" = 403 ] || fail "WebSocket über Port-Freigabe nicht abgelehnt"
+[ "$(status_of --max-time 3 "${ws[@]}" -H "Host: $app_host" -H 'Sec-Fetch-Site: same-origin' -H 'Sec-Fetch-Mode: websocket' "$url/shell")" = 101 ] || fail "WebSocket über Host der App nicht durchgereicht"
+ok "Host: App und lokal durch, Port-Freigabe und fremde Hosts abgelehnt"
 
 echo "-- Claude Code aus PATH"
 curl -s -o /dev/null --max-time 90 -X POST -H 'Content-Type: application/json' \

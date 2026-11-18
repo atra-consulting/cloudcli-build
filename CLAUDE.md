@@ -8,9 +8,10 @@ und Fehlersuche: [README.md](README.md).
 
 - **Quellcode von upstream nie ändern** (keine Patches, kein Fork, auch nicht `package.json`). Grund: AGPL §13.
   Anpassungen nur über Build-Optionen, Umgebungsvariablen und `bundle/bin/`.
-- **Sicherheit des Platform-Modus:** CloudCLI hat dann kein Login. Nichts darf CloudCLI oder den Wächter auf
-  eine andere Adresse als `127.0.0.1` bringen (Ausnahme: `CLOUDCLI_HOST` in `run-local.sh`, nur im
-  Container). Regeln des Wächters nur mit Prüfung in `scripts/smoke.sh` ändern.
+- **Sicherheit des Platform-Modus:** CloudCLI hat dann kein Login. Der Wächter lauscht nur auf `127.0.0.1`
+  (Ausnahme: `CLOUDCLI_HOST` in `run-local.sh`, nur im Container), CloudCLI nur auf `127.0.0.3`. CloudCLI
+  nie auf `127.0.0.1`: Die Port-Weiterleitung von Coder geht dorthin und umginge den Wächter. Regeln des
+  Wächters nur mit Prüfung in `scripts/smoke.sh` ändern.
 - **Releases nie überschreiben.** Rebuild derselben upstream-Version: `release.version` erhöhen.
   Immutable releases sind im Repo aktiv: Tag und Dateien sind nach der Veröffentlichung gesperrt, ein
   Tag-Name ist auch nach dem Löschen verbraucht.
@@ -62,5 +63,6 @@ Bei jeder neuen upstream-Version prüfen (Pfade relativ zu `siteboon/claudecodeu
 | Git-Identität und Onboarding | `server/modules/user/user.routes.ts`, `user.service.ts` |
 | Claude Code aus `PATH` statt SDK-Binary | `server/shared/claude-cli-path.ts`, `server/modules/providers/list/claude/claude-runtime.provider.ts` |
 | `HOST`, `SERVER_PORT`, `.env`, `DATABASE_PATH` | `server/index.ts`, `server/load-env.ts` |
+| Aufrufe an sich selbst über `127.0.0.1:SERVER_PORT` (gehen ins Leere, CloudCLI liegt auf `127.0.0.3`) | `grep -rn 127.0.0.1 server` (bisher nur Browser-Use) |
 | Paketumfang (`files`), Skripte `prepare`, `build` | `package.json` |
 | Node-Hauptversion | `.nvmrc` |
