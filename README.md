@@ -295,7 +295,8 @@ was der Benutzer des Platzes kann. Drei Schichten schützen davor:
    `*.<coder-domain>`. Der Wächter lehnt deshalb ab:
    - Browser-Anfragen mit `Sec-Fetch-Site: same-site` oder `cross-site`, außer dem Öffnen der App als Seite
      (GET, Navigation, kein iframe). Dazu zählt die Navigation, die der Service Worker von CloudCLI neu holt
-     (`Sec-Fetch-Mode: same-origin`, `Sec-Fetch-Dest: document`).
+     (Chromium: `Sec-Fetch-Mode: navigate` mit `Sec-Fetch-Dest: empty`; Fetch-Standard: `same-origin` mit
+     `document`).
    - bei Browsern ohne Fetch Metadata: einen `Origin`, der nicht zum Host passt
    - Registrierung und Login aus dem Browser; im Platform-Modus braucht sie niemand
 

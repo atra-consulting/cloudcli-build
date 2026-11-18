@@ -75,14 +75,17 @@ function rejection(req) {
   }
 
   if (site === 'same-site' || site === 'cross-site') {
-    // Öffnen als Seite: Navigation (Link, Knopf im Coder-Dashboard). Der
-    // Service Worker von CloudCLI (public/sw.js) holt Navigationen mit
-    // fetch(event.request) neu; der Modus wird dabei same-origin, Site und
-    // Dest bleiben. Sicher: dest=document gibt es nur bei Navigationen, und
-    // ein same-origin-Request an eine fremde Origin verlässt den Browser nicht.
-    const openAsPage = (mode === 'navigate' || (mode === 'same-origin' && dest === 'document'))
-      && (dest === undefined || dest === 'document')
-      && (req.method === 'GET' || req.method === 'HEAD');
+    // Öffnen als Seite: Navigation (Link, Knopf im Coder-Dashboard), kein
+    // iframe. Der Service Worker von CloudCLI (public/sw.js) holt Navigationen
+    // mit fetch(event.request) neu. Chromium schickt dann Modus navigate mit
+    // Dest empty (auf einem Platz beobachtet), laut Fetch-Standard wäre es
+    // Modus same-origin mit Dest document. Beides ist erlaubt. Sicher: Den
+    // Modus navigate kann fetch() einer fremden Seite nicht setzen, dest=document
+    // gibt es nur bei Navigationen, und ein same-origin-Request an eine fremde
+    // Origin verlässt den Browser nicht.
+    const asPage = (mode === 'navigate' && (dest === undefined || dest === 'document' || dest === 'empty'))
+      || (mode === 'same-origin' && dest === 'document');
+    const openAsPage = asPage && (req.method === 'GET' || req.method === 'HEAD');
     return openAsPage ? null : `Anfrage von einer anderen Seite (Sec-Fetch-Site: ${site})`;
   }
 

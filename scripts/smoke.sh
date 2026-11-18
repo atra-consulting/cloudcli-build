@@ -88,7 +88,9 @@ status_of() { curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$@" || true;
 [ "$(status_of -X POST -H 'Origin: https://fremd.example' --data 'message=x' "$url/api/agent")" = 403 ] || fail "fremder Origin ohne Fetch Metadata nicht abgelehnt"
 [ "$(status_of -H 'Sec-Fetch-Site: cross-site' -H 'Sec-Fetch-Mode: navigate' -H 'Sec-Fetch-Dest: document' "$url/")" = 200 ] || fail "Öffnen der App über einen Link abgelehnt"
 [ "$(status_of -H 'Sec-Fetch-Site: cross-site' -H 'Sec-Fetch-Mode: navigate' -H 'Sec-Fetch-Dest: iframe' "$url/")" = 403 ] || fail "Einbetten in fremdes iframe nicht abgelehnt"
-# Service Worker von CloudCLI holt Navigationen neu: Modus same-origin, Site bleibt
+# Service Worker von CloudCLI holt Navigationen neu: Chromium navigate/empty, Standard same-origin/document
+[ "$(status_of -H 'Sec-Fetch-Site: same-site' -H 'Sec-Fetch-Mode: navigate' -H 'Sec-Fetch-Dest: empty' "$url/")" = 200 ] || fail "Navigation über den Service Worker (Chromium) abgelehnt"
+[ "$(status_of -X POST -H 'Sec-Fetch-Site: same-site' -H 'Sec-Fetch-Mode: navigate' -H 'Sec-Fetch-Dest: empty' -H 'Content-Type: application/json' --data '{}' "$url/api/agent")" = 403 ] || fail "POST mit Modus navigate nicht abgelehnt"
 [ "$(status_of -H 'Sec-Fetch-Site: same-site' -H 'Sec-Fetch-Mode: same-origin' -H 'Sec-Fetch-Dest: document' "$url/")" = 200 ] || fail "Navigation über den Service Worker abgelehnt"
 [ "$(status_of -H 'Sec-Fetch-Site: same-site' -H 'Sec-Fetch-Mode: same-origin' -H 'Sec-Fetch-Dest: empty' "$url/api/auth/user")" = 403 ] || fail "same-origin-Modus ohne Dest document nicht abgelehnt"
 [ "$(status_of -X POST -H 'Sec-Fetch-Site: same-site' -H 'Sec-Fetch-Mode: same-origin' -H 'Sec-Fetch-Dest: document' -H 'Content-Type: application/json' --data '{}' "$url/api/agent")" = 403 ] || fail "POST mit Dest document nicht abgelehnt"
