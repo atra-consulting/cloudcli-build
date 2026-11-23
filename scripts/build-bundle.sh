@@ -100,7 +100,8 @@ echo "== Nicht benötigte Binaries entfernen"
 find node_modules -type d \( -name codex-linux-x64 -o -name claude-agent-sdk-linux-x64 \) -prune -print -exec rm -rf {} +
 rm -f node_modules/.bin/codex
 du -sh node_modules
-du -s node_modules/* node_modules/@*/* 2>/dev/null | sort -rn | head -n 10 | awk '{printf "  %6d MB  %s\n", $1/1024, $2}'
+# Ohne head: Mit pipefail bräche sort sonst manchmal mit SIGPIPE (141) ab
+du -s node_modules/* node_modules/@*/* 2>/dev/null | sort -rn | awk 'NR <= 10 {printf "  %6d MB  %s\n", $1/1024, $2}'
 
 echo "== App zusammenstellen (Umfang wie npm pack)"
 # Die Liste "files" aus package.json, dazu package.json selbst. Kein npm pack:
