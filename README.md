@@ -176,6 +176,7 @@ Der Smoketest entpackt das Archiv in ein leeres `HOME` und prüft:
 | Adressen | trotz geerbtem `HOST=0.0.0.0` lauscht der Wächter nur auf `127.0.0.1`, CloudCLI nur auf `127.0.0.3`; `127.0.0.1:<interner Port>` ist geschlossen |
 | Host | Start ohne gültige Host-Prüfung bricht ab. Host der App und lokale Hosts gehen durch. Abgelehnt werden: Port-Freigabe (`3001--…`), fremde Domain mit `cloudcli--`, Punkt am Ende, doppelte und fehlende Host-Zeile, Anfrage-Ziel in absoluter Form, auch beim WebSocket |
 | Wächter | Anfragen anderer Seiten, fremder Origin, Einbetten im iframe, Registrierung aus dem Browser und fremder WebSocket werden abgelehnt; eigene Anfragen, eigener WebSocket und das Öffnen über einen Link gehen durch |
+| Eigene Modelle | ein eigenes Modell für Claude anlegen, mit „nur eigene Modelle“ als einziges und als Standard zeigen, wieder löschen (diese API nutzt der Arbeitsplatz für Modelle eines Gateways) |
 | Claude | CloudCLI ruft `claude` aus `PATH` auf (mit einem Platzhalter-Skript) |
 | Bundle | `better-sqlite3` und `node-pty` laden, ein Terminal liefert Ausgabe; Codex- und SDK-Binary fehlen |
 
