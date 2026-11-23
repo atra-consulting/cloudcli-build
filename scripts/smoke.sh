@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # =============================================================================
 # Smoketest für ein fertiges Bundle (Linux x64): entpacken, starten und
-# nachweisen, dass Platform-Modus, Wächter, Einrichtung, Claude-Aufruf,
+# nachweisen, dass Platform-Modus, Wächter, Einrichtung, eigene Modelle, Claude-Aufruf,
 # Datenbank und Terminal funktionieren.
 # Aufruf: scripts/smoke.sh out/cloudcli-...-linux-x64.tar.gz
 # Braucht: curl, git, ss (iproute2)
@@ -153,6 +153,27 @@ code=$(status_of -H 'Host:' "$url/api/auth/user")
 [ "$(status_of --max-time 3 "${ws[@]}" -H "Host: $SERVER_PORT--main--platz--teilnehmer.coder.example" -H 'Sec-Fetch-Site: same-origin' -H 'Sec-Fetch-Mode: websocket' "$url/shell")" = 403 ] || fail "WebSocket über Port-Freigabe nicht abgelehnt"
 [ "$(status_of --max-time 3 "${ws[@]}" -H "Host: $app_host" -H 'Sec-Fetch-Site: same-origin' -H 'Sec-Fetch-Mode: websocket' "$url/shell")" = 101 ] || fail "WebSocket über Host der App nicht durchgereicht"
 ok "Host: App und lokal durch, Port-Freigabe und fremde Hosts abgelehnt"
+
+echo "-- Eigene Modelle"
+# Der Arbeitsplatz trägt Modelle eines Gateways über diese API ein
+# (anlegen, nur eigene Modelle zeigen, löschen). Ändert upstream die API,
+# fällt das hier auf und nicht erst auf den Plätzen.
+models="$url/api/providers/claude/models"
+# js AUSDRUCK: JSON von stdin als d, Ergebnis des Ausdrucks ausgeben
+js() { "$bundle/node/bin/node" -e 'let s="";process.stdin.on("data",c=>s+=c).on("end",()=>{const d=JSON.parse(s);console.log(eval(process.argv[1]))})' "$1"; }
+curl -fsS -X POST -H 'Content-Type: application/json' --data '{"model":"Smoke Modell","id":"smoke/modell-1"}' "$models" >/dev/null \
+  || fail "eigenes Modell nicht angelegt"
+list=$(curl -fsS "$models") || fail "Liste der Modelle nicht abrufbar"
+record=$(echo "$list" | js 'd.data.models.OPTIONS.filter(o=>o.value==="smoke/modell-1"&&o.isCustom===true).map(o=>o.recordId).join(",")') \
+  || fail "Liste der Modelle hat ein anderes Format: $list"
+[ -n "$record" ] && [ "${record#*,}" = "$record" ] || fail "eigenes Modell nicht genau einmal in der Liste: $list"
+list=$(curl -fsS -X PUT -H 'Content-Type: application/json' --data '{"enabled":true}' "$models/custom-only") || fail "nur eigene Modelle nicht einschaltbar"
+[ "$(echo "$list" | js 'd.data.models.CUSTOM_MODELS_ONLY+" "+d.data.models.DEFAULT+" "+d.data.models.OPTIONS.map(o=>o.value).join(",")')" = "true smoke/modell-1 smoke/modell-1" ] \
+  || fail "mit nur eigenen Modellen nicht nur das eigene als Standard: $list"
+curl -fsS -X PUT -H 'Content-Type: application/json' --data '{"enabled":false}' "$models/custom-only" >/dev/null || fail "nur eigene Modelle nicht ausschaltbar"
+curl -fsS -X DELETE "$models/$record" >/dev/null || fail "eigenes Modell nicht löschbar"
+curl -fsS "$models" | js 'd.data.models.OPTIONS.some(o=>o.isCustom)' | grep -qx false || fail "eigenes Modell nach dem Löschen noch da"
+ok "eigenes Modell angelegt, als einziges gezeigt, gelöscht"
 
 echo "-- Claude Code aus PATH"
 curl -s -o /dev/null --max-time 90 -X POST -H 'Content-Type: application/json' \

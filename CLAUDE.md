@@ -62,6 +62,7 @@ Bei jeder neuen upstream-Version prüfen (Pfade relativ zu `siteboon/claudecodeu
 | Registrierung, nur ohne Benutzer | `server/modules/auth/auth.service.ts`, `auth.routes.ts` |
 | Git-Identität und Onboarding | `server/modules/user/user.routes.ts`, `user.service.ts` |
 | Claude Code aus `PATH` statt SDK-Binary | `server/shared/claude-cli-path.ts`, `server/modules/providers/list/claude/claude-runtime.provider.ts` |
+| Eigene Modelle je Provider (der Arbeitsplatz trägt Modelle eines Gateways ein): `GET/POST /api/providers/claude/models`, `DELETE …/:recordId`, `PUT …/custom-only`, Antwort `data.models.OPTIONS[].{value,recordId,isCustom}`, `DEFAULT`, `CUSTOM_MODELS_ONLY` | `server/modules/providers/provider.routes.ts`, `services/provider-models.service.ts` |
 | `HOST`, `SERVER_PORT`, `.env`, `DATABASE_PATH` | `server/index.ts`, `server/load-env.ts` |
 | Aufrufe an sich selbst über `127.0.0.1:SERVER_PORT` (gehen ins Leere, CloudCLI liegt auf `127.0.0.3`) | `grep -rn 127.0.0.1 server` (bisher nur Browser-Use) |
 | Paketumfang (`files`), Skripte `prepare`, `build` | `package.json` |
